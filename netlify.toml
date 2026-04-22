@@ -38,6 +38,6 @@
 [functions."trading-bot-cron"]
   schedule = "*/5 * * * *"
 
-# HTTP endpoint for manual bot triggers (path-only, no schedule)
-[functions."trading-bot"]
-  path = "/api/trading-bot/run"
+# trading-bot is invoked via HTTP redirect above (line 13-17)
+# No [functions."trading-bot"] config needed — path would conflict with Netlify rules
+# and the redirect rule already routes /api/trading-bot/* → /.netlify/functions/trading-bot

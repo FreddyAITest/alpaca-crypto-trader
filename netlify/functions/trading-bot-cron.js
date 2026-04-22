@@ -162,7 +162,4 @@ export default async (req) => {
   }
 };
 
-// Schedule ONLY - no custom path (Netlify requirement for scheduled functions)
-export const config = {
-  schedule: "*/5 * * * *",
-};
+// Schedule is defined in netlify.toml [functions."trading-bot-cron"] — no config export needed here

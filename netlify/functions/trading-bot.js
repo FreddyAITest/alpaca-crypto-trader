@@ -165,7 +165,4 @@ export default async (req) => {
   }
 };
 
-// HTTP endpoint config only (scheduled runs handled by trading-bot-cron.js)
-export const config = {
-  path: "/api/trading-bot/run",
-};
+// No config export needed — function is invoked via Netlify redirect rule in netlify.toml
