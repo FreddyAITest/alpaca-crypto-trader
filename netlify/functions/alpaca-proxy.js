@@ -34,7 +34,7 @@ export default async (req) => {
 
   try {
     const resp = await fetch(alpacaUrl, { method, headers, body });
-    
+
     // Alpaca may return 204 for DELETE (cancel order)
     if (resp.status === 204) {
       return new Response(JSON.stringify({ success: true }), {
