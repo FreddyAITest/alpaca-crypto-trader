@@ -9,6 +9,7 @@ import ActivityLog from './components/ActivityLog';
 import BotStatus from './components/BotStatus';
 import CryptoScanner from './components/CryptoScanner';
 import AdvancedCharts from './components/AdvancedCharts';
+import PerformanceAnalytics from './components/PerformanceAnalytics';
 import RSIChart from './components/RSIChart';
 import MACDChart from './components/MACDChart';
 
@@ -130,6 +131,7 @@ function App() {
             { id: 'bot', label: '🤖 Trading Bot' },
             { id: 'scanner', label: '🔍 Scanner' },
             { id: 'charts', label: '📈 Charts' },
+            { id: 'analytics', label: '📊 Analytics' },
             { id: 'positions', label: '💼 Positions' },
             { id: 'orders', label: '📋 Orders' },
             { id: 'trade', label: '⚡ Trade' },
@@ -220,6 +222,13 @@ function App() {
                 <MACDChart />
               </div>
             </div>
+          </div>
+        )}
+
+        {activeTab === 'analytics' && (
+          <div className="space-y-6">
+            <h2 className="text-lg font-semibold text-white">📊 Trade Performance Analytics</h2>
+            <PerformanceAnalytics />
           </div>
         )}
 
