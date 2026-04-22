@@ -8,6 +8,7 @@ import TradePanel from './components/TradePanel';
 import ActivityLog from './components/ActivityLog';
 import BotStatus from './components/BotStatus';
 import CryptoScanner from './components/CryptoScanner';
+import AdvancedCharts from './components/AdvancedCharts';
 
 function App() {
   const [account, setAccount] = useState(null);
@@ -126,6 +127,7 @@ function App() {
             { id: 'dashboard', label: '📊 Dashboard' },
             { id: 'bot', label: '🤖 Trading Bot' },
             { id: 'scanner', label: '🔍 Scanner' },
+            { id: 'charts', label: '📈 Charts' },
             { id: 'positions', label: '💼 Positions' },
             { id: 'orders', label: '📋 Orders' },
             { id: 'trade', label: '⚡ Trade' },
@@ -199,6 +201,13 @@ function App() {
           <div className="max-w-2xl mx-auto space-y-6">
             <h2 className="text-lg font-semibold text-white">🤖 Automated Trading Bot</h2>
             <BotStatus />
+          </div>
+        )}
+
+        {activeTab === 'charts' && (
+          <div className="space-y-6">
+            <h2 className="text-lg font-semibold text-white">📈 Advanced Charts</h2>
+            <AdvancedCharts />
           </div>
         )}
 

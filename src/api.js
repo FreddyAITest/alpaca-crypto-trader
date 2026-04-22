@@ -30,9 +30,19 @@ export async function fetchActivities(after) {
   return res.json();
 }
 
-export async function fetchCryptoBars(symbol, timeframe = "1Day", limit = 7) {
+export async function fetchCryptoBars(symbol, timeframe = "1Hour", limit = 100) {
   const end = new Date().toISOString();
-  const start = new Date(Date.now() - limit * 86400000).toISOString();
+  // Calculate start based on timeframe and limit
+  let msPerBar;
+  switch (timeframe) {
+    case "1Min": msPerBar = 60000; break;
+    case "5Min": msPerBar = 300000; break;
+    case "15Min": msPerBar = 900000; break;
+    case "1Hour": msPerBar = 3600000; break;
+    case "1Day": msPerBar = 86400000; break;
+    default: msPerBar = 3600000;
+  }
+  const start = new Date(Date.now() - limit * msPerBar).toISOString();
   const res = await fetch(
     `${API_BASE}/crypto/us/bars?symbols=${symbol}&timeframe=${timeframe}&start=${start}&end=${end}&limit=${limit}`,
     { headers: HEADERS }
