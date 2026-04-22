@@ -1,6 +1,7 @@
-// Trading Bot - Scheduled Netlify Function
-// Runs every 5 minutes, scans crypto pairs, applies risk management, executes trades
-// Crypto only, paper trading, conservative 2-8% daily target
+// Trading Bot Cron - Scheduled-only Netlify Function
+// Runs every 5 minutes via Netlify schedule.
+// This file must NOT define a custom path (Netlify forbids path + schedule on same function).
+// It contains the same trading logic as trading-bot.js but is invoked by Netlify's scheduler.
 
 import { getAccount, getPositions, getPortfolioHistory, getCryptoBars, getCryptoSnapshot } from "./lib/alpaca-client.js";
 import { RiskManager } from "./lib/risk-manager.js";
@@ -26,7 +27,7 @@ export default async (req) => {
   };
 
   try {
-    log("=== Trading Bot Started ===");
+    log("=== Trading Bot Cron Started ===");
 
     // 1. Get account state
     const account = await getAccount();
@@ -66,7 +67,6 @@ export default async (req) => {
     if (tradingAllowed.allowed) {
       log("Scanning watch list for signals...");
       
-      // Fetch bars for all watchlist symbols (1-hour timeframe, last 100 bars)
       const barsBySymbol = {};
       const snapshotData = await getCryptoSnapshot(WATCH_LIST.map(s => s.replace("/", "")));
       
@@ -82,20 +82,17 @@ export default async (req) => {
         }
       }
 
-      // Analyze signals
       const signals = scanSymbols(barsBySymbol);
       log(`Signals found: ${signals.length}`);
       
       for (const signal of signals) {
         log(`  ${signal.symbol}: ${signal.signal.toUpperCase()} (strength: ${(signal.strength * 100).toFixed(0)}%) ${signal.reasons.join(", ")}`);
         
-        // Attach current price from snapshot
         const alpacaSymbol = signal.symbol.replace("/", "");
         if (snapshotData?.snapshots?.[alpacaSymbol]) {
           signal.currentPrice = parseFloat(snapshotData.snapshots[alpacaSymbol].latestTrade?.p || 0);
         }
         
-        // Only trade strong signals (strength >= 0.5)
         if (signal.strength >= 0.5 && signal.currentPrice > 0) {
           const result = await executeSignal(signal, riskManager, equity, positions);
           actions.push({ type: "trade", signal, result });
@@ -121,11 +118,14 @@ export default async (req) => {
       tradesExecuted: newTrades.length,
       slTpCloses: slTpActions.length,
     });
-    botState.runHistory = botState.runHistory.slice(-50); // Keep last 50 runs
+    botState.runHistory = botState.runHistory.slice(-50);
 
-    const response = {
+    log("=== Trading Bot Cron Completed ===");
+
+    return new Response(JSON.stringify({
       status: "ok",
       runAt: runStart,
+      source: "cron",
       risk: riskSummary,
       tradingAllowed: tradingAllowed.allowed,
       riskReason: tradingAllowed.reason,
@@ -137,17 +137,13 @@ export default async (req) => {
         success: a.result?.success,
         message: a.result?.message,
       })),
-      logs: logs.slice(-20), // Last 20 log entries
+      logs: logs.slice(-20),
       botState: {
         lastRun: botState.lastRun,
         totalTrades: botState.totalTrades,
         totalRuns: botState.runHistory.length,
       },
-    };
-
-    log("=== Trading Bot Completed ===");
-
-    return new Response(JSON.stringify(response, null, 2), {
+    }, null, 2), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     });
@@ -155,6 +151,7 @@ export default async (req) => {
     log(`FATAL ERROR: ${err.message}`);
     return new Response(JSON.stringify({
       status: "error",
+      source: "cron",
       error: err.message,
       stack: err.stack,
       logs,
@@ -165,7 +162,7 @@ export default async (req) => {
   }
 };
 
-// HTTP endpoint config only (scheduled runs handled by trading-bot-cron.js)
+// Schedule ONLY - no custom path (Netlify requirement for scheduled functions)
 export const config = {
-  path: "/api/trading-bot/run",
+  schedule: "*/5 * * * *",
 };

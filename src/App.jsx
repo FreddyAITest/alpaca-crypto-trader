@@ -9,6 +9,8 @@ import ActivityLog from './components/ActivityLog';
 import BotStatus from './components/BotStatus';
 import CryptoScanner from './components/CryptoScanner';
 import AdvancedCharts from './components/AdvancedCharts';
+import RSIChart from './components/RSIChart';
+import MACDChart from './components/MACDChart';
 
 function App() {
   const [account, setAccount] = useState(null);
@@ -208,6 +210,16 @@ function App() {
           <div className="space-y-6">
             <h2 className="text-lg font-semibold text-white">📈 Advanced Charts</h2>
             <AdvancedCharts />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="bg-[#0f1117] rounded-xl border border-[#2d3148] p-4">
+                <h3 className="text-sm font-semibold text-white mb-3">RSI Indicator</h3>
+                <RSIChart />
+              </div>
+              <div className="bg-[#0f1117] rounded-xl border border-[#2d3148] p-4">
+                <h3 className="text-sm font-semibold text-white mb-3">MACD Indicator</h3>
+                <MACDChart />
+              </div>
+            </div>
           </div>
         )}
 

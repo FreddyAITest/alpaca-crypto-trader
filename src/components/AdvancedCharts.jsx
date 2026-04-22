@@ -28,20 +28,9 @@ function ema(data, period) {
   return result;
 }
 
-function sma(data, period) {
-  const result = [];
-  for (let i = 0; i < data.length; i++) {
-    if (i < period - 1) { result.push(null); continue; }
-    let sum = 0;
-    for (let j = i - period + 1; j <= i; j++) sum += data[j];
-    result.push(sum / period);
-  }
-  return result;
-}
-
 function calcRsi(closes, period = 14) {
-  if (closes.length < period + 1) return [];
   const result = new Array(closes.length).fill(null);
+  if (closes.length < period + 1) return result;
   const changes = closes.slice(1).map((c, i) => c - closes[i]);
   let avgGain = 0, avgLoss = 0;
   for (let i = 0; i < period; i++) {
@@ -72,25 +61,28 @@ function calcMacd(closes, fast = 12, slow = 26, signal = 9) {
   for (let i = 0; i < signalLine.length; i++) {
     if (signalLine[i] !== null) fullSignal[i + offset] = signalLine[i];
   }
-  const histogram = new Array(closes.length).fill(null);
+  const hist = new Array(closes.length).fill(null);
   for (let i = 0; i < closes.length; i++) {
-    if (macdLine[i] !== null && fullSignal[i] !== null) {
-      histogram[i] = macdLine[i] - fullSignal[i];
-    }
+    if (macdLine[i] !== null && fullSignal[i] !== null) hist[i] = macdLine[i] - fullSignal[i];
   }
-  return { macdLine, signalLine: fullSignal, histogram };
+  return { macdLine, signalLine: fullSignal, histogram: hist };
 }
 
 function calcBollinger(closes, period = 20, mult = 2) {
-  const mid = sma(closes, period);
-  const upper = [], lower = [];
+  const mid = [];
+  const upper = [];
+  const lower = [];
   for (let i = 0; i < closes.length; i++) {
-    if (mid[i] === null) { upper.push(null); lower.push(null); continue; }
-    let sumSq = 0;
-    for (let j = i - period + 1; j <= i; j++) sumSq += (closes[j] - mid[i]) ** 2;
-    const std = Math.sqrt(sumSq / period);
-    upper.push(mid[i] + mult * std);
-    lower.push(mid[i] - mult * std);
+    if (i < period - 1) { mid.push(null); upper.push(null); lower.push(null); continue; }
+    let sum = 0;
+    for (let j = i - period + 1; j <= i; j++) sum += closes[j];
+    const avg = sum / period;
+    let sqSum = 0;
+    for (let j = i - period + 1; j <= i; j++) sqSum += (closes[j] - avg) ** 2;
+    const std = Math.sqrt(sqSum / period);
+    mid.push(avg);
+    upper.push(avg + mult * std);
+    lower.push(avg - mult * std);
   }
   return { mid, upper, lower };
 }
@@ -108,6 +100,7 @@ export default function AdvancedCharts() {
   const candlestickRef = useRef(null);
   const rsiRef = useRef(null);
   const macdRef = useRef(null);
+  const chartsRef = useRef([]);
 
   const loadBars = useCallback(async () => {
     setLoading(true);
@@ -130,18 +123,35 @@ export default function AdvancedCharts() {
     }
   }, [pair, timeframe]);
 
+  useEffect(() => { loadBars(); }, [loadBars]);
+
+  // Cleanup chart instances on unmount or re-render
   useEffect(() => {
-    loadBars();
-  }, [loadBars]);
+    return () => {
+      chartsRef.current.forEach(c => c.remove());
+      chartsRef.current = [];
+    };
+  }, []);
 
   // Render charts when bars change
   useEffect(() => {
     if (!bars || bars.length === 0) return;
 
+    // Cleanup old charts
+    chartsRef.current.forEach(c => c.remove());
+    chartsRef.current = [];
+
     const closes = bars.map(b => b.c);
     const rsiData = calcRsi(closes);
     const macdResult = calcMacd(closes);
     const bollinger = calcBollinger(closes);
+
+    const candleEl = candlestickRef.current;
+    const rsiEl = rsiRef.current;
+    const macdEl = macdRef.current;
+    if (candleEl) candleEl.innerHTML = '';
+    if (rsiEl) rsiEl.innerHTML = '';
+    if (macdEl) macdEl.innerHTML = '';
 
     const chartTheme = {
       layout: {
@@ -166,14 +176,6 @@ export default function AdvancedCharts() {
       },
     };
 
-    // Cleanup previous chart instances
-    const candleEl = candlestickRef.current;
-    const rsiEl = rsiRef.current;
-    const macdEl = macdRef.current;
-    if (candleEl) candleEl.innerHTML = '';
-    if (rsiEl) rsiEl.innerHTML = '';
-    if (macdEl) macdEl.innerHTML = '';
-
     import('lightweight-charts').then(({ createChart }) => {
       // --- Candlestick Chart ---
       if (!candleEl) return;
@@ -183,9 +185,8 @@ export default function AdvancedCharts() {
         autoSize: true,
       });
 
-      // Map bars to lightweight-charts format
       const candleData = bars.map(b => ({
-        time: b.t ? b.t : (b.Timestamp ? b.Timestamp : Math.floor(new Date(b.t || b.start || b.time).getTime() / 1000)),
+        time: b.t,
         open: b.o,
         high: b.h,
         low: b.l,
@@ -202,9 +203,9 @@ export default function AdvancedCharts() {
       });
       candleSeries.setData(candleData);
 
-      // Volume as histogram overlay
+      // Volume overlay
       const volumeData = bars.map(b => ({
-        time: b.t ? b.t : Math.floor(new Date(b.t || b.start || b.time).getTime() / 1000),
+        time: b.t,
         value: b.v,
         color: b.c >= b.o ? '#00c85333' : '#ff174433',
       })).filter(v => v.time);
@@ -221,7 +222,7 @@ export default function AdvancedCharts() {
       if (showBollinger && bollinger.mid.some(v => v !== null)) {
         const bbMid = [], bbUpper = [], bbLower = [];
         for (let i = 0; i < bars.length; i++) {
-          const t = bars[i].t ? bars[i].t : Math.floor(new Date(bars[i].t || bars[i].start || bars[i].time).getTime() / 1000);
+          const t = bars[i].t;
           if (t && bollinger.mid[i] !== null) {
             bbMid.push({ time: t, value: bollinger.mid[i] });
             bbUpper.push({ time: t, value: bollinger.upper[i] });
@@ -235,6 +236,7 @@ export default function AdvancedCharts() {
       }
 
       candleChart.timeScale().fitContent();
+      chartsRef.current.push(candleChart);
 
       // --- RSI Chart ---
       if (showRSI && rsiEl) {
@@ -245,9 +247,8 @@ export default function AdvancedCharts() {
         });
         const rsiSeriesData = [];
         for (let i = 0; i < bars.length; i++) {
-          const t = bars[i].t ? bars[i].t : Math.floor(new Date(bars[i].t || bars[i].start || bars[i].time).getTime() / 1000);
-          if (t && rsiData[i] !== null && rsiData[i] !== undefined) {
-            rsiSeriesData.push({ time: t, value: rsiData[i] });
+          if (bars[i].t && rsiData[i] !== null && rsiData[i] !== undefined) {
+            rsiSeriesData.push({ time: bars[i].t, value: rsiData[i] });
           }
         }
         rsiChart.addLineSeries({
@@ -256,34 +257,26 @@ export default function AdvancedCharts() {
           title: 'RSI(14)',
         }).setData(rsiSeriesData);
 
-        // Overbought/Oversold reference lines
+        // Reference lines at 70 and 30
+        const timePoints = candleData.map(b => b.time);
         rsiChart.addLineSeries({
           color: '#ff1744',
           lineWidth: 1,
           lineStyle: 2,
-          lineVisible: true,
-          title: '',
           lastValueVisible: false,
           priceLineVisible: false,
-        }).setData(bars.map(b => ({
-          time: b.t ? b.t : Math.floor(new Date(b.t || b.start || b.time).getTime() / 1000),
-          value: 70,
-        })).filter(b => b.time));
+        }).setData(timePoints.map(t => ({ time: t, value: 70 })));
 
         rsiChart.addLineSeries({
           color: '#00c853',
           lineWidth: 1,
           lineStyle: 2,
-          lineVisible: true,
-          title: '',
           lastValueVisible: false,
           priceLineVisible: false,
-        }).setData(bars.map(b => ({
-          time: b.t ? b.t : Math.floor(new Date(b.t || b.start || b.time).getTime() / 1000),
-          value: 30,
-        })).filter(b => b.time));
+        }).setData(timePoints.map(t => ({ time: t, value: 30 })));
 
         rsiChart.timeScale().fitContent();
+        chartsRef.current.push(rsiChart);
 
         // Sync time scales
         candleChart.timeScale().subscribeVisibleLogicalRangeChange(range => {
@@ -304,7 +297,7 @@ export default function AdvancedCharts() {
 
         const macdLineData = [], signalLineData = [], histData = [];
         for (let i = 0; i < bars.length; i++) {
-          const t = bars[i].t ? bars[i].t : Math.floor(new Date(bars[i].t || bars[i].start || bars[i].time).getTime() / 1000);
+          const t = bars[i].t;
           if (t && macdResult.macdLine[i] !== null && macdResult.macdLine[i] !== undefined) {
             macdLineData.push({ time: t, value: macdResult.macdLine[i] });
           }
@@ -337,6 +330,7 @@ export default function AdvancedCharts() {
         }).setData(histData);
 
         macdChart.timeScale().fitContent();
+        chartsRef.current.push(macdChart);
 
         // Sync time scales
         candleChart.timeScale().subscribeVisibleLogicalRangeChange(range => {
@@ -349,15 +343,10 @@ export default function AdvancedCharts() {
 
       // Handle resize
       const handleResize = () => {
-        if (candleEl) candleChart.applyOptions({ width: candleEl.clientWidth });
-        if (showRSI && rsiEl) {
-          const rsiChartInstance = rsiEl.__chart;
-          if (rsiChartInstance) rsiChartInstance.applyOptions({ width: rsiEl.clientWidth });
-        }
-        if (showMACD && macdEl) {
-          const macdChartInstance = macdEl.__chart;
-          if (macdChartInstance) macdChartInstance.applyOptions({ width: macdEl.clientWidth });
-        }
+        candleChart.applyOptions({ width: candleEl?.clientWidth });
+        chartsRef.current.forEach(c => {
+          if (c !== candleChart) c.applyOptions({ width: candleEl?.clientWidth });
+        });
       };
       window.addEventListener('resize', handleResize);
       return () => window.removeEventListener('resize', handleResize);
@@ -376,28 +365,28 @@ export default function AdvancedCharts() {
         <select
           value={pair}
           onChange={e => setPair(e.target.value)}
-          className="px-3 py-2 bg-[#252836] border border-[#2d3148] rounded-lg text-sm text-white"
+          className="px-3 py-2 bg-[#252836] border border-[#2d3148] rounded-lg text-sm text-white focus:outline-none focus:border-[#448aff]"
         >
-          {PAIRS.map(p => (
-            <option key={p} value={p}>{p}</option>
-          ))}
+          {PAIRS.map(p => <option key={p} value={p}>{p}</option>)}
         </select>
 
-        {TIMEFRAMES.map(tf => (
-          <button
-            key={tf.value}
-            onClick={() => setTimeframe(tf.value)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              timeframe === tf.value
-                ? 'bg-[#448aff] text-white'
-                : 'bg-[#252836] text-[#8b8fa3] hover:text-white border border-[#2d3148]'
-            }`}
-          >
-            {tf.label}
-          </button>
-        ))}
+        <div className="flex bg-[#252836] rounded-lg border border-[#2d3148] overflow-hidden">
+          {TIMEFRAMES.map(tf => (
+            <button
+              key={tf.value}
+              onClick={() => setTimeframe(tf.value)}
+              className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                timeframe === tf.value
+                  ? 'bg-[#448aff] text-white'
+                  : 'text-[#8b8fa3] hover:text-white'
+              }`}
+            >
+              {tf.label}
+            </button>
+          ))}
+        </div>
 
-        <div className="flex items-center gap-2 ml-4">
+        <div className="flex gap-1">
           {[
             { label: 'RSI', state: showRSI, setter: setShowRSI, color: '#448aff' },
             { label: 'MACD', state: showMACD, setter: setShowMACD, color: '#ff9100' },
@@ -406,10 +395,10 @@ export default function AdvancedCharts() {
             <button
               key={ind.label}
               onClick={() => ind.setter(!ind.state)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              className={`px-2.5 py-1 text-xs rounded-lg border transition-colors ${
                 ind.state
-                  ? 'text-white border'
-                  : 'text-[#8b8fa3] border border-[#2d3148] opacity-50'
+                  ? 'text-white'
+                  : 'bg-[#252836] border-[#2d3148] text-[#8b8fa3] hover:text-white'
               }`}
               style={ind.state ? { backgroundColor: ind.color + '22', borderColor: ind.color + '44', color: ind.color } : {}}
             >
@@ -421,9 +410,9 @@ export default function AdvancedCharts() {
         <button
           onClick={loadBars}
           disabled={loading}
-          className="px-4 py-2 bg-[#448aff] text-white rounded-lg text-sm font-medium hover:bg-[#448aff]/80 transition-colors disabled:opacity-50 ml-auto"
+          className="px-3 py-1.5 bg-[#252836] hover:bg-[#2d3148] rounded-lg text-sm transition-colors border border-[#2d3148] text-[#8b8fa3] hover:text-white disabled:opacity-50"
         >
-          {loading ? '🔄 Loading...' : '↻ Refresh'}
+          {loading ? '...' : '↻'}
         </button>
       </div>
 
@@ -498,8 +487,17 @@ export default function AdvancedCharts() {
               <div ref={macdRef} className="w-full" />
             </div>
           )}
+
+          {/* Bottom border when no MACD */}
+          {!showMACD && !showRSI && (
+            <div className="bg-[#1a1d29] rounded-b-xl border border-[#2d3148] border-t-0 h-0" />
+          )}
         </div>
-      ) : null}
+      ) : (
+        <div className="flex items-center justify-center h-48 text-[#8b8fa3]">
+          No chart data available for {pair}
+        </div>
+      )}
     </div>
   );
 }
