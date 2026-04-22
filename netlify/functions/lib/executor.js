@@ -2,7 +2,7 @@
 // Executes trades with stop-loss and take-profit bracket orders
 // Wraps the Alpaca order API with risk-managed order types
 
-import { submitOrder, closePosition, getPositions, getOrders } from "./alpaca-client.js";
+import { submitOrder, closePosition, getPositions, getOrders, cancelOrder } from "./alpaca-client.js";
 
 /**
  * Execute a BUY with bracket order (stop-loss + take-profit)
@@ -102,12 +102,8 @@ export async function cancelAllOrders() {
     const results = [];
     for (const order of orders) {
       try {
-        await getOrders; // Just use the cancel endpoint
-        const resp = await fetch(`${ALPACA_BASE}/orders/${order.id}`, {
-          method: "DELETE",
-          headers,
-        });
-        results.push({ id: order.id, canceled: resp.status === 204 });
+        await cancelOrder(order.id);
+        results.push({ id: order.id, canceled: true });
       } catch (e) {
         results.push({ id: order.id, error: e.message });
       }

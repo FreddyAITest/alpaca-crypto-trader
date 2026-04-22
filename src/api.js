@@ -94,3 +94,19 @@ export async function fetchAssets() {
   if (!res.ok) throw new Error(`Assets fetch failed: ${res.status}`);
   return res.json();
 }
+
+// Bot API
+export async function fetchBotStatus() {
+  const res = await fetch(`${API_BASE}/trading-bot/status`, { headers: HEADERS });
+  if (!res.ok) throw new Error(`Bot status failed: ${res.status}`);
+  return res.json();
+}
+
+export async function runBotManual() {
+  const res = await fetch(`${API_BASE}/trading-bot/run`, {
+    method: "POST",
+    headers: HEADERS,
+  });
+  if (!res.ok) throw new Error(`Bot run failed: ${res.status}`);
+  return res.json();
+}

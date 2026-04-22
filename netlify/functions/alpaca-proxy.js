@@ -13,6 +13,14 @@ export default async (req) => {
   const url = new URL(req.url);
   const path = url.pathname.replace("/api/", "");
 
+  // Skip bot routes - they're handled by dedicated functions
+  if (path.startsWith("trading-bot/")) {
+    return new Response(JSON.stringify({ error: "Bot endpoints are handled by dedicated functions" }), {
+      status: 404,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
   let alpacaUrl;
 
   // Data API routes (crypto bars, quotes, trades)

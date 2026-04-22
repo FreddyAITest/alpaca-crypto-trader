@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { fetchAccount, fetchPositions, fetchOrders, fetchPortfolioHistory, fetchActivities, submitOrder, cancelOrder } from './api';
+import { fetchAccount, fetchPositions, fetchOrders, fetchPortfolioHistory, fetchActivities, fetchWeeklyPnL, submitOrder, cancelOrder } from './api';
 import AccountCard from './components/AccountCard';
 import PositionsTable from './components/PositionsTable';
 import OrdersTable from './components/OrdersTable';
@@ -14,6 +14,7 @@ function App() {
   const [orders, setOrders] = useState([]);
   const [history, setHistory] = useState(null);
   const [activities, setActivities] = useState([]);
+  const [weeklyPnL, setWeeklyPnL] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -23,12 +24,13 @@ function App() {
     setLoading(true);
     setError(null);
     try {
-      const [acc, pos, ord, hist, act] = await Promise.allSettled([
+      const [acc, pos, ord, hist, act, wkPnl] = await Promise.allSettled([
         fetchAccount(),
         fetchPositions(),
         fetchOrders('open'),
         fetchPortfolioHistory('1M', '1D'),
         fetchActivities(),
+        fetchWeeklyPnL(),
       ]);
       if (acc.status === 'fulfilled') setAccount(acc.value);
       else setError('Failed to load account: ' + acc.reason?.message);
@@ -36,6 +38,7 @@ function App() {
       if (ord.status === 'fulfilled') setOrders(Array.isArray(ord.value) ? ord.value : []);
       if (hist.status === 'fulfilled') setHistory(hist.value);
       if (act.status === 'fulfilled') setActivities(Array.isArray(act.value) ? act.value : []);
+      if (wkPnl.status === 'fulfilled') setWeeklyPnL(wkPnl.value);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -153,7 +156,7 @@ function App() {
       <main className="max-w-[1440px] mx-auto px-6 py-6">
         {activeTab === 'dashboard' && (
           <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
               <AccountCard title="Portfolio Value" value={formatMoney(account?.equity)} subtitle={account?.currency || 'USD'} icon="💰" />
               <AccountCard title="Cash Balance" value={formatMoney(account?.cash)} subtitle={`Buying power: ${formatMoney(account?.buying_power)}`} icon="💵" />
               <AccountCard
@@ -163,6 +166,13 @@ function App() {
                 }`}
                 valueClass={pnlColor(account ? parseFloat(account.equity) - parseFloat(account.last_mkt_value || 0) : 0)}
                 icon="📈"
+              />
+              <AccountCard
+                title="Weekly P&L"
+                value={weeklyPnL ? `${weeklyPnL.pnl >= 0 ? '+' : ''}${formatMoney(weeklyPnL.pnl)}` : '$—'}
+                valueClass={pnlColor(weeklyPnL?.pnl || 0)}
+                subtitle={weeklyPnL ? `${weeklyPnL.pnlPct >= 0 ? '+' : ''}${weeklyPnL.pnlPct.toFixed(2)}% (7d)` : 'loading...'}
+                icon="📅"
               />
               <AccountCard title="Open Positions" value={positions.length} subtitle={`${orders.length} pending orders`} icon="📊" />
             </div>
