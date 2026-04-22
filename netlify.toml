@@ -34,6 +34,8 @@
   to = "/index.html"
   status = 200
 
-# Scheduled function - runs every 5 minutes
-[functions."trading-bot"]
-  schedule = "*/5 * * * *"
+# NOTE: Scheduled functions cannot have a custom path (redirect) in Netlify.
+# The trading-bot is invoked via HTTP from the UI dashboard.
+# For scheduled cron, create a separate trading-bot-scheduled.js function.
+# [functions."trading-bot-scheduled"]
+#   schedule = "*/5 * * * *"
