@@ -100,4 +100,4 @@ export async function getClock() {
   return alpacaFetch(`${ALPACA_BASE}/clock`);
 }
 
-export { ALPACA_BASE, ALPACA_DATA_BASE };
+export { ALPACA_BASE, ALPACA_DATA_BASE, alpacaFetch };

@@ -23,6 +23,14 @@ export default defineConfig({
         target: NETLIFY_FUNCTIONS_URL,
         changeOrigin: true,
       },
+      "/api/crypto-scanner": {
+        target: NETLIFY_FUNCTIONS_URL,
+        changeOrigin: true,
+      },
+      "/api/bot-status": {
+        target: NETLIFY_FUNCTIONS_URL,
+        changeOrigin: true,
+      },
       // Alpaca broker API - account endpoints
       "/api/account/portfolio/history": {
         target: "https://paper-api.alpaca.markets/v2",
@@ -67,6 +75,11 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ""),
         headers: alpacaHeaders,
+      },
+      // Crypto scanner -> Netlify function
+      "/api/crypto-scanner": {
+        target: NETLIFY_FUNCTIONS_URL,
+        changeOrigin: true,
       },
     },
   },
