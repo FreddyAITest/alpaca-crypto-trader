@@ -1,9 +1,9 @@
-// Crypto Pair Scanner - Netlify Function
-// Evaluates all available crypto pairs for short-term trading opportunities
+// Crypto Pair Scanner - Netlify Function (v2)
+// Evaluates crypto pairs for short-term trading opportunities
 // Uses RSI, MACD, volume spikes, volatility filters
 // Targets 2-8% daily profit candidates
 
-import { alpacaFetch } from "./lib/alpaca-client.js";
+import { getCryptoBars, getCryptoSnapshot } from "./lib/alpaca-client.js";
 
 // Technical indicator calculations
 function ema(data, period) {
@@ -67,16 +67,13 @@ const DEFAULT_PAIRS = [
   "MATIC/USD", "AAVE/USD", "BCH/USD"
 ];
 
-export const handler = async (event) => {
-  // Handle CORS
-  if (event.httpMethod === "OPTIONS") {
-    return { statusCode: 200, headers: corsHeaders(), body: "" };
-  }
-
+export default async (req) => {
   try {
-    const pairs = event.queryStringParameters?.pairs?.split(",") || DEFAULT_PAIRS;
-    const timeframe = event.queryStringParameters?.timeframe || "1H"; // 1H bars for intraday
-    const lookback = parseInt(event.queryStringParameters?.lookback || "100");
+    const url = new URL(req.url);
+    const pairsParam = url.searchParams.get("pairs");
+    const pairs = pairsParam ? pairsParam.split(",") : DEFAULT_PAIRS;
+    const timeframe = url.searchParams.get("timeframe") || "1Hour";
+    const lookback = parseInt(url.searchParams.get("lookback") || "100");
 
     const results = [];
 
@@ -84,12 +81,9 @@ export const handler = async (event) => {
       try {
         const symbol = pair.replace("/", "");
         // Fetch bars from Alpaca data API
-        const bars = await alpacaFetch(
-          `/v1beta3/crypto/us/bars?symbols=${symbol}&timeframe=${timeframe}&limit=${lookback}`,
-          "data"
-        );
+        const barsResp = await getCryptoBars(symbol, timeframe, lookback);
+        const barData = barsResp?.bars?.[symbol];
 
-        const barData = bars?.[symbol];
         if (!barData || barData.length < 30) {
           results.push({ pair, signal: "NO_DATA", score: 0, error: "Insufficient bar data" });
           continue;
@@ -115,7 +109,7 @@ export const handler = async (event) => {
         const avgVol = avgVolume[avgVolume.length - 1] || 1;
         const volumeRatio = currentVolume / avgVol;
 
-        // Volatility: ATR-like (simplified)
+        // Volatility: simplified ATR
         const dailyReturns = closes.slice(1).map((c, i) => (c - closes[i]) / closes[i]);
         const recentReturns = dailyReturns.slice(-24);
         const avgReturn = recentReturns.reduce((a, b) => a + b, 0) / recentReturns.length;
@@ -156,7 +150,7 @@ export const handler = async (event) => {
 
         // Momentum
         if (change24h > 2) { score += 5; signals.push("MOMENTUM_UP"); }
-        else if (change24h < -2) { score += 5; signals.push("OVERSOLD_DIP"); } // dip buying opportunity
+        else if (change24h < -2) { score += 5; signals.push("OVERSOLD_DIP"); }
 
         // Clamp score
         score = Math.max(0, Math.min(100, score));
@@ -194,20 +188,21 @@ export const handler = async (event) => {
     // Sort by score descending
     results.sort((a, b) => (b.score || 0) - (a.score || 0));
 
-    return {
-      statusCode: 200,
-      headers: corsHeaders(),
-      body: JSON.stringify({ timestamp: new Date().toISOString(), scanResults: results, pairsScanned: results.length })
-    };
+    return new Response(JSON.stringify({
+      timestamp: new Date().toISOString(),
+      scanResults: results,
+      pairsScanned: results.length
+    }, null, 2), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
   } catch (err) {
-    return { statusCode: 500, headers: corsHeaders(), body: JSON.stringify({ error: err.message }) };
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 };
 
-function corsHeaders() {
-  return {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "Content-Type",
-    "Access-Control-Allow-Methods": "GET, OPTIONS"
-  };
-}
+// Netlify function config
+export const config = { path: "/api/crypto-scanner" };

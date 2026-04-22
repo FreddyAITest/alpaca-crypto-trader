@@ -14,8 +14,8 @@ export default async (req) => {
   const path = url.pathname.replace("/api/", "");
 
   // Skip bot routes - they're handled by dedicated functions
-  if (path.startsWith("trading-bot/")) {
-    return new Response(JSON.stringify({ error: "Bot endpoints are handled by dedicated functions" }), {
+  if (path.startsWith("trading-bot/") || path === "crypto-scanner") {
+    return new Response(JSON.stringify({ error: "This endpoint is handled by a dedicated function" }), {
       status: 404,
       headers: { "Content-Type": "application/json" },
     });

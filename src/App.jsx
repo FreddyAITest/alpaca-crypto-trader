@@ -7,6 +7,7 @@ import PnLChart from './components/PnLChart';
 import TradePanel from './components/TradePanel';
 import ActivityLog from './components/ActivityLog';
 import BotStatus from './components/BotStatus';
+import CryptoScanner from './components/CryptoScanner';
 
 function App() {
   const [account, setAccount] = useState(null);
@@ -124,6 +125,7 @@ function App() {
           {[
             { id: 'dashboard', label: '📊 Dashboard' },
             { id: 'bot', label: '🤖 Trading Bot' },
+            { id: 'scanner', label: '🔍 Scanner' },
             { id: 'positions', label: '💼 Positions' },
             { id: 'orders', label: '📋 Orders' },
             { id: 'trade', label: '⚡ Trade' },
@@ -197,6 +199,14 @@ function App() {
           <div className="max-w-2xl mx-auto space-y-6">
             <h2 className="text-lg font-semibold text-white">🤖 Automated Trading Bot</h2>
             <BotStatus />
+          </div>
+        )}
+
+        {activeTab === 'scanner' && (
+          <div className="space-y-6">
+            <h2 className="text-lg font-semibold text-white">🔍 Crypto Pair Scanner</h2>
+            <p className="text-sm text-[#8b8fa3]">Scans 15 crypto pairs using RSI, MACD, volume, and volatility filters. Identifies candidates for 2-8% daily profit target.</p>
+            <CryptoScanner />
           </div>
         )}
 

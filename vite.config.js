@@ -2,8 +2,8 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
-const ALPACA_API_KEY = process.env.ALPACA_API_KEY || "PKFJY5TRMF36BGN76LPRGRUKTO";
-const ALPACA_SECRET_KEY = process.env.ALPACA_SECRET_KEY || "";
+const ALPACA_API_KEY=process.env.ALPACA_API_KEY || "PKFJY5TRMF36BGN76LPRGRUKTO";
+const ALPACA_SECRET_KEY=process.env.ALPACA_SECRET_KEY || "";
 
 const alpacaHeaders = {
   "APCA-API-KEY-ID": ALPACA_API_KEY,

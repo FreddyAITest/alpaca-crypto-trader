@@ -3,12 +3,37 @@
   publish = "dist"
   functions = "netlify/functions"
 
+# Scanner API
+[[redirects]]
+  from = "/api/crypto-scanner"
+  to = "/.netlify/functions/crypto-scanner"
+  status = 200
+
+# Bot status and run
+[[redirects]]
+  from = "/api/trading-bot/*"
+  to = "/.netlify/functions/trading-bot"
+  status = 200
+  query = {path = ":path"}
+
+# Bot status endpoint (separate function)
+[[redirects]]
+  from = "/api/bot-status"
+  to = "/.netlify/functions/bot-status"
+  status = 200
+
+# Alpaca proxy (account, positions, orders, activities, data)
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/alpaca-proxy/:splat"
   status = 200
 
+# SPA fallback
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
+
+# Scheduled function - runs every 5 minutes
+[functions."trading-bot"]
+  schedule = "*/5 * * * *"

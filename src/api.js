@@ -110,3 +110,11 @@ export async function runBotManual() {
   if (!res.ok) throw new Error(`Bot run failed: ${res.status}`);
   return res.json();
 }
+
+export async function fetchCryptoScanner(pairs, timeframe = "1Hour", lookback = 100) {
+  const params = new URLSearchParams({ timeframe, lookback: String(lookback) });
+  if (pairs) params.set("pairs", pairs);
+  const res = await fetch(`${API_BASE}/crypto-scanner?${params}`, { headers: HEADERS });
+  if (!res.ok) throw new Error(`Scanner failed: ${res.status}`);
+  return res.json();
+}
