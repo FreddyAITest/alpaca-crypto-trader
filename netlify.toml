@@ -9,6 +9,12 @@
   to = "/.netlify/functions/crypto-scanner"
   status = 200
 
+# Analytics API
+[[redirects]]
+  from = "/api/analytics"
+  to = "/.netlify/functions/analytics"
+  status = 200
+
 # Bot status and run
 [[redirects]]
   from = "/api/trading-bot/*"

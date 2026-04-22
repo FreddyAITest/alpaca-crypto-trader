@@ -12,6 +12,7 @@ import AdvancedCharts from './components/AdvancedCharts';
 import PerformanceAnalytics from './components/PerformanceAnalytics';
 import RSIChart from './components/RSIChart';
 import MACDChart from './components/MACDChart';
+import Analytics from './components/Analytics';
 
 function App() {
   const [account, setAccount] = useState(null);
@@ -130,6 +131,7 @@ function App() {
             { id: 'dashboard', label: '📊 Dashboard' },
             { id: 'bot', label: '🤖 Trading Bot' },
             { id: 'scanner', label: '🔍 Scanner' },
+            { id: 'analytics', label: '📊 Analytics' },
             { id: 'charts', label: '📈 Charts' },
             { id: 'analytics', label: '📊 Analytics' },
             { id: 'positions', label: '💼 Positions' },
@@ -237,6 +239,14 @@ function App() {
             <h2 className="text-lg font-semibold text-white">🔍 Crypto Pair Scanner</h2>
             <p className="text-sm text-[#8b8fa3]">Scans 15 crypto pairs using RSI, MACD, volume, and volatility filters. Identifies candidates for 2-8% daily profit target.</p>
             <CryptoScanner />
+          </div>
+        )}
+
+        {activeTab === 'analytics' && (
+          <div className="space-y-6">
+            <h2 className="text-lg font-semibold text-white">📊 Trade Performance Analytics</h2>
+            <p className="text-sm text-[#8b8fa3]">Win rate, profit factor, Sharpe ratio, max drawdown, and trade-by-trade analysis.</p>
+            <Analytics />
           </div>
         )}
 

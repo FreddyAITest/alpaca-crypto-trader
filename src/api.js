@@ -128,3 +128,9 @@ export async function fetchCryptoScanner(pairs, timeframe = "1Hour", lookback = 
   if (!res.ok) throw new Error(`Scanner failed: ${res.status}`);
   return res.json();
 }
+
+export async function fetchAnalytics() {
+  const res = await fetch(`${API_BASE}/analytics`, { headers: HEADERS });
+  if (!res.ok) throw new Error(`Analytics fetch failed: ${res.status}`);
+  return res.json();
+}
