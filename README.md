@@ -31,19 +31,59 @@ npm run dev
 
 The dev server proxies `/api/*` to Alpaca's paper trading API.
 
-## Environment Variables (Netlify)
+## Netlify Deployment — Step by Step
 
-Set these in your Netlify site settings:
+### Step 1: Push repo to GitHub
 
-- `ALPACA_API_KEY` — Your Alpaca paper trading API key
-- `ALPACA_SECRET_KEY` — Your Alpaca paper trading secret key
+The repo is already pushed to: https://github.com/FreddyAITest/alpaca-crypto-trader
 
-## Netlify Deployment
+If you need to re-push:
+```bash
+git remote add origin https://github.com/FreddyAITest/alpaca-crypto-trader.git
+git push -u origin main
+```
 
-1. Push this repo to GitHub
-2. Connect the repo in Netlify (choose repo → select this repo)
-3. Set environment variables (ALPACA_API_KEY, ALPACA_SECRET_KEY)
-4. Deploy — Netlify auto-detects the Vite build
+### Step 2: Connect Netlify to GitHub
+
+1. Go to https://app.netlify.com/start
+2. Click "Import an existing project from a Git repository"
+3. Choose "GitHub" as the provider
+4. Authorize Netlify to access your GitHub (if first time)
+5. Select the `FreddyAITest/alpaca-crypto-trader` repository
+6. Build settings (auto-detected):
+   - Build command: `npm run build`
+   - Publish directory: `dist`
+7. Click "Deploy site"
+
+### Step 3: Set Environment Variables (CRITICAL)
+
+Without these, all Alpaca API calls will return **401 Unauthorized**.
+
+1. Go to your Netlify site dashboard
+2. Click **Site settings** (top nav)
+3. Click **Environment variables** (left sidebar)
+4. Click **Add a variable** and add:
+
+| Variable | Value | Notes |
+|----------|-------|-------|
+| `ALPACA_API_KEY` | `PKFJY5TRMF36BGN76LPRGRUKTO` | Your paper trading API key |
+| `ALPACA_SECRET_KEY` | *(your secret key)* | Find this at https://app.alpaca.markets/paper/dashboard/overview → API Keys tab |
+
+**How to find your Alpaca Secret Key:**
+1. Go to https://app.alpaca.markets/paper/dashboard/overview
+2. Click the **API Keys** tab on the left
+3. You'll see your Key ID (already known) and the Secret Key
+4. If you don't see the secret, click "Regenerate" to create a new key pair
+5. Copy the secret key value and paste it into the Netlify env var
+
+### Step 4: Trigger a deploy
+
+After adding environment variables, you need to redeploy:
+1. Go to **Deploys** tab in Netlify
+2. Click **Trigger deploy** → **Deploy site**
+3. Wait for the build to complete
+
+Your site is now live! The serverless proxy function will authenticate with Alpaca using the env vars.
 
 ## API Proxy
 
