@@ -68,6 +68,24 @@ export async function fetchPortfolioHistory(period = "1M", timeframe = "1D") {
   return res.json();
 }
 
+export async function fetchWeeklyPnL() {
+  // Fetch 7-day history at 1-day granularity
+  const res = await fetch(
+    `${API_BASE}/account/portfolio/history?period=1W&timeframe=1D`,
+    { headers: HEADERS }
+  );
+  if (!res.ok) throw new Error(`Weekly P&L failed: ${res.status}`);
+  const data = await res.json();
+  if (data && data.equity && data.equity.length >= 2) {
+    const startEquity = parseFloat(data.equity[0]);
+    const endEquity = parseFloat(data.equity[data.equity.length - 1]);
+    const pnl = endEquity - startEquity;
+    const pnlPct = startEquity > 0 ? (pnl / startEquity) * 100 : 0;
+    return { pnl, pnlPct, startEquity, endEquity };
+  }
+  return { pnl: 0, pnlPct: 0, startEquity: 0, endEquity: 0 };
+}
+
 export async function fetchAssets() {
   const res = await fetch(
     `${API_BASE}/assets?status=active&asset_class=crypto`,
