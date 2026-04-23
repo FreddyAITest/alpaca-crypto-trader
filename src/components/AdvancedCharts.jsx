@@ -393,7 +393,7 @@ export default function AdvancedCharts() {
           {[
             { label: 'RSI', state: showRSI, setter: setShowRSI, color: cssVar('--accent-blue') },
             { label: 'MACD', state: showMACD, setter: setShowMACD, color: cssVar('--accent-amber') },
-            { label: 'Bollinger', state: showBollinger, setter: setShowBollinger, color: '#7c4dff' },
+            { label: 'Bollinger', state: showBollinger, setter: setShowBollinger, color: cssVar('--accent-purple') },
           ].map(ind => (
             <button
               key={ind.label}
