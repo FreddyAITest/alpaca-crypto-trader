@@ -52,12 +52,10 @@ export default function RiskDashboard() {
           let peak = curve[0];
           let maxDD = 0;
           const ddCurve = [];
-          const peaks = [];
           for (let i = 0; i < curve.length; i++) {
             if (curve[i] > peak) peak = curve[i];
             const dd = peak > 0 ? ((peak - curve[i]) / peak) * 100 : 0;
             ddCurve.push(dd);
-            peaks.push(peak);
             if (dd > maxDD) maxDD = dd;
           }
           setDrawdownCurve(ddCurve);
@@ -92,9 +90,15 @@ export default function RiskDashboard() {
     );
   }
 
+  // Compute risk metrics
+  const riskMetrics = computeRiskMetrics(equityCurve, positions, account);
+
   return (
     <div className="space-y-6">
-      {/* Row 1: Exposure Pie + Summary Cards */}
+      {/* Row 0: Risk Summary Cards */}
+      <RiskSummaryCards metrics={riskMetrics} positions={positions} account={account} />
+
+      {/* Row 1: Exposure Pie + Correlation Matrix */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <ExposurePie positions={positions} account={account} />
         <CorrelationMatrix positions={positions} livePrices={livePrices} />
@@ -111,7 +115,143 @@ export default function RiskDashboard() {
   );
 }
 
+// ========== RISK METRICS ==========
+
+function computeRiskMetrics(equityCurve, positions, account) {
+  const metrics = {
+    sharpeRatio: 0,
+    sortinoRatio: 0,
+    var95: 0,
+    var99: 0,
+    currentDrawdown: 0,
+    volatility: 0,
+    totalExposure: 0,
+    positionCount: positions.length,
+    herfindahlIndex: 0,
+  };
+
+  if (equityCurve.length < 2) return metrics;
+
+  // Daily returns
+  const dailyReturns = [];
+  for (let i = 1; i < equityCurve.length; i++) {
+    const ret = (equityCurve[i] - equityCurve[i - 1]) / equityCurve[i - 1];
+    dailyReturns.push(ret);
+  }
+
+  if (dailyReturns.length === 0) return metrics;
+
+  const meanReturn = dailyReturns.reduce((a, b) => a + b, 0) / dailyReturns.length;
+  const stdDev = Math.sqrt(dailyReturns.reduce((s, r) => s + (r - meanReturn) ** 2, 0) / dailyReturns.length);
+
+  // Sharpe ratio (annualized, assuming risk-free rate ~5% / 252)
+  const riskFreeDaily = 0.05 / 252;
+  metrics.sharpeRatio = stdDev > 0 ? ((meanReturn - riskFreeDaily) * Math.sqrt(252)) / stdDev : 0;
+
+  // Sortino ratio (only downside deviation)
+  const downsideReturns = dailyReturns.filter(r => r < 0);
+  const downsideDev = downsideReturns.length > 0
+    ? Math.sqrt(downsideReturns.reduce((s, r) => s + r * r, 0) / downsideReturns.length)
+    : 0;
+  metrics.sortinoRatio = downsideDev > 0 ? ((meanReturn - riskFreeDaily) * Math.sqrt(252)) / downsideDev : 0;
+
+  // Volatility (annualized)
+  metrics.volatility = stdDev * Math.sqrt(252) * 100;
+
+  // Value at Risk (VaR) — parametric
+  const portfolioValue = account ? parseFloat(account.equity || 0) : equityCurve[equityCurve.length - 1];
+  metrics.var95 = portfolioValue * (meanReturn - 1.645 * stdDev); // 95% 1-day VaR in $
+  metrics.var99 = portfolioValue * (meanReturn - 2.326 * stdDev); // 99% 1-day VaR in $
+
+  // Current drawdown from peak
+  const currentEquity = equityCurve[equityCurve.length - 1];
+  const peak = Math.max(...equityCurve);
+  metrics.currentDrawdown = peak > 0 ? ((peak - currentEquity) / peak) * 100 : 0;
+
+  // Total exposure
+  const totalMV = positions.reduce((sum, p) => sum + Math.abs(parseFloat(p.market_value || 0)), 0);
+  metrics.totalExposure = totalMV;
+
+  // Herfindahl concentration index (1/n = perfectly分散, 1 = single position)
+  if (positions.length > 0 && totalMV > 0) {
+    const shares = positions.map(p => (Math.abs(parseFloat(p.market_value || 0)) / totalMV));
+    metrics.herfindahlIndex = shares.reduce((sum, s) => sum + s * s, 0);
+  }
+
+  return metrics;
+}
+
 // ========== SUB-COMPONENTS ==========
+
+// --- Risk Summary Cards ---
+function RiskSummaryCards({ metrics, positions, account }) {
+  const formatMoney = (val) => {
+    if (Math.abs(val) >= 1000) return '$' + val.toLocaleString('en-US', { maximumFractionDigits: 0 });
+    return '$' + val.toFixed(2);
+  };
+
+  const cards = [
+    {
+      label: 'Sharpe Ratio',
+      value: metrics.sharpeRatio.toFixed(2),
+      sublabel: 'Annualized',
+      color: metrics.sharpeRatio >= 2 ? 'var(--accent-green)' : metrics.sharpeRatio >= 1 ? 'var(--accent-amber)' : 'var(--accent-red)',
+      icon: '📐',
+    },
+    {
+      label: 'Sortino Ratio',
+      value: metrics.sortinoRatio.toFixed(2),
+      sublabel: 'Downside risk',
+      color: metrics.sortinoRatio >= 2 ? 'var(--accent-green)' : metrics.sortinoRatio >= 1 ? 'var(--accent-amber)' : 'var(--accent-red)',
+      icon: '📊',
+    },
+    {
+      label: '1-Day VaR (95%)',
+      value: formatMoney(Math.abs(metrics.var95)),
+      sublabel: metrics.var95 < 0 ? 'Potential loss' : 'Potential gain',
+      color: 'var(--accent-red)',
+      icon: '⚠️',
+    },
+    {
+      label: 'Annual Volatility',
+      value: metrics.volatility.toFixed(1) + '%',
+      sublabel: `${metrics.positionCount} position${metrics.positionCount !== 1 ? 's' : ''}`,
+      color: metrics.volatility > 80 ? 'var(--accent-red)' : metrics.volatility > 40 ? 'var(--accent-amber)' : 'var(--accent-green)',
+      icon: '📉',
+    },
+    {
+      label: 'Current Drawdown',
+      value: metrics.currentDrawdown.toFixed(2) + '%',
+      sublabel: 'From peak equity',
+      color: metrics.currentDrawdown > 10 ? 'var(--accent-red)' : metrics.currentDrawdown > 5 ? 'var(--accent-amber)' : 'var(--accent-green)',
+      icon: '↘️',
+    },
+    {
+      label: 'Concentration',
+      value: metrics.herfindahlIndex > 0 ? `${(1 / metrics.herfindahlIndex).toFixed(1)} equiv.` : 'N/A',
+      sublabel: `HHI: ${metrics.herfindahlIndex.toFixed(2)}`,
+      color: metrics.herfindahlIndex > 0.5 ? 'var(--accent-red)' : metrics.herfindahlIndex > 0.25 ? 'var(--accent-amber)' : 'var(--accent-green)',
+      icon: '🔵',
+    },
+  ];
+
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      {cards.map((card, i) => (
+        <div key={i} className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-3">
+          <div className="flex items-center gap-1.5 mb-1">
+            <span className="text-sm">{card.icon}</span>
+            <span className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wide">{card.label}</span>
+          </div>
+          <div className="text-lg font-bold" style={{ color: card.color }}>
+            {card.value}
+          </div>
+          <div className="text-[10px] text-[var(--text-muted)] mt-0.5">{card.sublabel}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 // --- Portfolio Exposure Pie Chart ---
 function ExposurePie({ positions, account }) {
@@ -240,13 +380,7 @@ function CorrelationMatrix({ positions, livePrices }) {
 
   const symbols = positions.map(p => (p.symbol || '').replace('/USD', ''));
 
-  // Build price arrays from live prices (use dailyChange as a proxy signal)
-  // Since we don't have full historical prices in the frontend, we use a simplified
-  // correlation based on daily price moves from the positions themselves
-  // Real correlation would need historical bars; here we compute a heuristic from
-  // current unrealized P&L% and market regime
-
-  // Compute a synthetic correlation matrix using available data
+  // Build correlation matrix using available data
   // Pairwise: if both have same sign dailyChange, higher correlation
   const n = symbols.length;
   const dailyPcts = positions.map(p => parseFloat(p.unrealized_plpc || 0) * 100);
@@ -254,8 +388,6 @@ function CorrelationMatrix({ positions, livePrices }) {
   const totalMV = marketValues.reduce((a, b) => a + b, 0) || 1;
 
   // Build correlation matrix using a market-factor model
-  // Assume a single market factor β and idiosyncratic noise
-  // β estimated from position size relative to portfolio
   const betas = marketValues.map(mv => mv / totalMV);
   const corr = [];
   for (let i = 0; i < n; i++) {
@@ -264,8 +396,6 @@ function CorrelationMatrix({ positions, livePrices }) {
       if (i === j) {
         corr[i][j] = 1.0;
       } else {
-        // Market-factor correlation: ρ = βi * βj / (σi * σj) simplified
-        // Use same-sign momentum as additional factor
         const sameSign = (dailyPcts[i] >= 0 && dailyPcts[j] >= 0) || (dailyPcts[i] < 0 && dailyPcts[j] < 0) ? 1 : -1;
         const baseCorr = Math.min(0.95, betas[i] * betas[j] * n * 2 + 0.3);
         const adjustedCorr = sameSign > 0 ? baseCorr : Math.max(-0.5, baseCorr - 0.4);
@@ -368,6 +498,25 @@ function DrawdownChart({ equityCurve, drawdownCurve, maxDrawdownPct, peakEquity 
 
   // Normalize drawdown for SVG (0 at top, maxDD at bottom)
   const ddMax = Math.max(maxDD, 1) || 1;
+
+  // Compute recovery time (days from max DD to next new peak, or still in drawdown)
+  let recoveryDays = null;
+  let stillInDrawdown = false;
+  if (maxDDIdx > 0) {
+    const peakValue = equityCurve[bestPeakIdx];
+    let recovered = false;
+    for (let i = maxDDIdx + 1; i < equityCurve.length; i++) {
+      if (equityCurve[i] >= peakValue) {
+        recoveryDays = i - maxDDIdx;
+        recovered = true;
+        break;
+      }
+    }
+    if (!recovered) {
+      stillInDrawdown = true;
+      recoveryDays = equityCurve.length - maxDDIdx;
+    }
+  }
 
   return (
     <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-4">
@@ -475,9 +624,9 @@ function DrawdownChart({ equityCurve, drawdownCurve, maxDrawdownPct, peakEquity 
             <div className="text-[var(--accent-red)] font-bold mt-0.5">-{maxDrawdownPct.toFixed(1)}%</div>
           </div>
           <div className="bg-[var(--bg-secondary)] rounded-lg p-2 text-center">
-            <div className="text-[var(--text-muted)]">DD at Trough</div>
-            <div className="text-[var(--accent-red)] font-bold mt-0.5">
-              ${equityCurve[maxDDIdx]?.toLocaleString('en-US', { maximumFractionDigits: 0 }) || '--'}
+            <div className="text-[var(--text-muted)]">Recovery</div>
+            <div className={`font-bold mt-0.5 ${stillInDrawdown ? 'text-[var(--accent-amber)]' : 'text-[var(--accent-green)]'}`}>
+              {recoveryDays !== null ? `${recoveryDays}d${stillInDrawdown ? ' (ongoing)' : ''}` : '—'}
             </div>
           </div>
         </div>

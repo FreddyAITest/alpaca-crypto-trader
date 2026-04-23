@@ -15,12 +15,15 @@ const ALERT_TYPES = {
   daily_loss_limit:  { icon: '💀', color: 'red',    label: 'Daily Loss Limit' },
 };
 
+const AUTO_DISMISS_MS = 15000;
+
 let alertIdCounter = 0;
 
 export default function TradeAlerts() {
   const [alerts, setAlerts] = useState([]);
   const [prevPositions, setPrevPositions] = useState([]);
   const [prevDailyPnl, setPrevDailyPnl] = useState(null);
+  const [prevBotStatus, setPrevBotStatus] = useState(null);
   const initialized = useRef(false);
   const alertContainerRef = useRef(null);
 
@@ -30,15 +33,15 @@ export default function TradeAlerts() {
     const alertConfig = ALERT_TYPES[type] || ALERT_TYPES.risk_warning;
 
     setAlerts(prev => {
-      // Max 8 alerts visible
-      const updated = [...prev, { id, type, message, details, config: alertConfig, time: new Date() }];
-      return updated.slice(-8);
+      // Max 10 alerts visible
+      const updated = [...prev, { id, type, message, details, config: alertConfig, time: new Date(), createdAt: Date.now(), dismissing: false }];
+      return updated.slice(-10);
     });
 
-    // Auto-dismiss after 12 seconds
+    // Auto-dismiss after timeout
     setTimeout(() => {
       setAlerts(prev => prev.filter(a => a.id !== id));
-    }, 12000);
+    }, AUTO_DISMISS_MS);
   }, []);
 
   // Monitor positions for changes (detect opens/closes)
@@ -99,15 +102,29 @@ export default function TradeAlerts() {
             const risk = botData.risk || {};
             const currentDailyPnlPct = parseFloat(risk.dailyPnlPctStr || '0');
 
-            // Bot trading status changes
-            if (risk.status === 'STOPPED_LOSS' && prevDailyPnl !== null) {
-              addAlert('daily_loss_limit', 'Daily loss limit reached - Bot stopped', {
-                dailyPnl: risk.dailyPnlPctStr,
-              });
-            } else if (risk.status === 'STOPPED_PROFIT' && prevDailyPnl !== null) {
-              addAlert('daily_target', 'Daily profit target reached!', {
-                dailyPnl: risk.dailyPnlPctStr,
-              });
+            // Detect bot status transitions
+            if (risk.status) {
+              if (risk.status === 'STOPPED_LOSS' && prevBotStatus !== 'STOPPED_LOSS') {
+                addAlert('daily_loss_limit', 'Daily loss limit reached - Bot stopped', {
+                  dailyPnl: risk.dailyPnlPctStr,
+                });
+              } else if (risk.status === 'STOPPED_PROFIT' && prevBotStatus !== 'STOPPED_PROFIT') {
+                addAlert('daily_target', 'Daily profit target reached!', {
+                  dailyPnl: risk.dailyPnlPctStr,
+                });
+              }
+            }
+
+            // Detect strong trading signals from bot
+            if (botData.lastSignal) {
+              const sig = botData.lastSignal;
+              if (sig.strength === 'strong' || sig.strength === 'overbought' || sig.strength === 'oversold') {
+                addAlert('strong_signal', `Strong ${sig.action || 'signal'} on ${sig.symbol || 'crypto'}`, {
+                  symbol: sig.symbol,
+                  action: sig.action,
+                  rsi: sig.rsi ? sig.rsi.toFixed(1) : undefined,
+                });
+              }
             }
 
             // SL/TP alerts from bot
@@ -120,6 +137,22 @@ export default function TradeAlerts() {
             }
 
             setPrevDailyPnl(currentDailyPnlPct);
+            setPrevBotStatus(risk.status || null);
+          }
+
+          // Concentration risk warning — if any position > 50% of portfolio
+          if (accountData && currentPositions.length > 0) {
+            const totalValue = currentPositions.reduce((sum, p) => sum + Math.abs(parseFloat(p.market_value || 0)), 0);
+            for (const pos of currentPositions) {
+              const mv = Math.abs(parseFloat(pos.market_value || 0));
+              if (totalValue > 0 && (mv / totalValue) > 0.5) {
+                addAlert('risk_warning', `High concentration: ${(pos.symbol || '???')} is ${((mv / totalValue) * 100).toFixed(0)}% of portfolio`, {
+                  symbol: pos.symbol,
+                  pct: ((mv / totalValue) * 100).toFixed(0),
+                });
+                break; // Only warn once per check
+              }
+            }
           }
         }
 
@@ -146,9 +179,12 @@ export default function TradeAlerts() {
     };
   }, [addAlert, prevPositions]);
 
-  // Dismiss alert
+  // Dismiss alert with slide-out animation
   const dismissAlert = (id) => {
-    setAlerts(prev => prev.filter(a => a.id !== id));
+    setAlerts(prev => prev.map(a => a.id === id ? { ...a, dismissing: true } : a));
+    setTimeout(() => {
+      setAlerts(prev => prev.filter(a => a.id !== id));
+    }, 300);
   };
 
   // Color classes
@@ -182,6 +218,16 @@ export default function TradeAlerts() {
     }
   };
 
+  const timerColor = (color) => {
+    switch (color) {
+      case 'green': return 'bg-[var(--accent-green)]';
+      case 'red': return 'bg-[var(--accent-red)]';
+      case 'amber': return 'bg-[var(--accent-amber)]';
+      case 'blue': return 'bg-[var(--accent-blue)]';
+      default: return 'bg-[var(--accent-blue)]';
+    }
+  };
+
   return (
     <>
       {/* Toast container — fixed top-right */}
@@ -190,41 +236,60 @@ export default function TradeAlerts() {
         className="fixed top-16 right-4 z-50 space-y-2 pointer-events-none"
         style={{ maxWidth: '380px' }}
       >
-        {alerts.map(alert => (
-          <div
-            key={alert.id}
-            className={`pointer-events-auto animate-slide-in rounded-lg border ${borderColor(alert.config.color)} ${bgColor(alert.config.color)} shadow-lg backdrop-blur-sm p-3 flex gap-3 items-start`}
-          >
-            <span className="text-xl shrink-0">{alert.config.icon}</span>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <span className={`text-xs font-bold ${textColor(alert.config.color)}`}>
-                  {alert.config.label}
-                </span>
-                <span className="text-[10px] text-[var(--text-muted)]">
-                  {alert.time.toLocaleTimeString()}
-                </span>
+        {alerts.map(alert => {
+          const elapsed = Date.now() - alert.createdAt;
+          const remaining = Math.max(0, AUTO_DISMISS_MS - elapsed);
+          const timerDuration = `${remaining}ms`;
+
+          return (
+            <div
+              key={alert.id}
+              className={`pointer-events-auto rounded-lg border ${borderColor(alert.config.color)} ${bgColor(alert.config.color)} shadow-lg backdrop-blur-sm overflow-hidden ${
+                alert.dismissing ? 'animate-slide-out' : 'animate-slide-in'
+              }`}
+            >
+              <div className="p-3 flex gap-3 items-start">
+                <span className="text-xl shrink-0">{alert.config.icon}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs font-bold ${textColor(alert.config.color)}`}>
+                      {alert.config.label}
+                    </span>
+                    <span className="text-[10px] text-[var(--text-muted)]">
+                      {alert.time.toLocaleTimeString()}
+                    </span>
+                  </div>
+                  <p className="text-xs text-[var(--text-primary)] mt-0.5">{alert.message}</p>
+                  {alert.details && Object.keys(alert.details).length > 0 && (
+                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-[var(--text-muted)]">
+                      {Object.entries(alert.details).map(([k, v]) => (
+                        v != null && v !== undefined && <span key={k}>{k}: {v}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => dismissAlert(alert.id)}
+                  className="text-[var(--text-muted)] hover:text-[var(--text-primary)] shrink-0 text-xs leading-none p-1"
+                >
+                  ✕
+                </button>
               </div>
-              <p className="text-xs text-[var(--text-primary)] mt-0.5">{alert.message}</p>
-              {alert.details && Object.keys(alert.details).length > 0 && (
-                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-[var(--text-muted)]">
-                  {Object.entries(alert.details).map(([k, v]) => (
-                    v != null && <span key={k}>{k}: {v}</span>
-                  ))}
+              {/* Auto-dismiss timer bar */}
+              {!alert.dismissing && (
+                <div className="h-0.5 w-full bg-[var(--bg-secondary)]">
+                  <div
+                    className={`h-full ${timerColor(alert.config.color)} opacity-40 animate-toast-timer`}
+                    style={{ animationDuration: timerDuration }}
+                  />
                 </div>
               )}
             </div>
-            <button
-              onClick={() => dismissAlert(alert.id)}
-              className="text-[var(--text-muted)] hover:text-[var(--text-primary)] shrink-0 text-xs"
-            >
-              ✕
-            </button>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
-      {/* Minimal inline indicator (shows alert count for the tab) */}
+      {/* Minimal inline indicator (shows alert count for mobile) */}
       {alerts.length > 0 && (
         <div className="fixed bottom-4 right-4 z-40 md:hidden pointer-events-none">
           <span className="bg-[var(--accent-blue)] text-white text-xs font-bold px-2 py-1 rounded-full shadow-lg">

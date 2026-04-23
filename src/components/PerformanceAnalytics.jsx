@@ -220,6 +220,18 @@ export default function PerformanceAnalytics() {
   const maxEquity = equityCurve.length > 0 ? Math.max(...equityCurve) : 0;
   const rangeEquity = maxEquity - minEquity || 1;
 
+  // Compute volatility and VaR
+  const meanDailyReturn = dailyReturns.length > 0 ? dailyReturns.reduce((a, b) => a + b, 0) / dailyReturns.length : 0;
+  const stdDevDaily = dailyReturns.length > 1 ? Math.sqrt(dailyReturns.reduce((s, r) => s + (r - meanDailyReturn) ** 2, 0) / (dailyReturns.length - 1)) : 0;
+  const annualVolatility = stdDevDaily * Math.sqrt(252) * 100;
+  const portfolioValue = account ? parseFloat(account.equity || 0) : (equityCurve.length > 0 ? equityCurve[equityCurve.length - 1] : 0);
+  const var95 = portfolioValue * (meanDailyReturn - 1.645 * stdDevDaily);
+  const var99 = portfolioValue * (meanDailyReturn - 2.326 * stdDevDaily);
+  // Sortino
+  const downsideReturns = dailyReturns.filter(r => r < 0);
+  const downsideDev = downsideReturns.length > 0 ? Math.sqrt(downsideReturns.reduce((s, r) => s + r * r, 0) / downsideReturns.length) : 0;
+  const sortino = downsideDev > 0 ? ((meanDailyReturn - 0.05/252) * Math.sqrt(252)) / (downsideDev * Math.sqrt(252)) : 0;
+
   return (
     <div className="space-y-6">
       {/* Key Metrics Grid */}
@@ -230,6 +242,34 @@ export default function PerformanceAnalytics() {
         <MetricCard title="Sharpe Ratio" value={sharpe.toFixed(2)} valueClass={sharpe >= 1 ? 'text-[var(--accent-green)]' : sharpe >= 0 ? 'text-[var(--accent-amber)]' : 'text-[var(--accent-red)]'} icon="📐" />
         <MetricCard title="Max Drawdown" value={`-${maxDD.maxDrawdown.toFixed(1)}%`} valueClass="text-[var(--accent-red)]" icon="📉" />
         <MetricCard title="Net P&L" value={`$${totalPnl.toFixed(2)}`} valueClass={totalPnl >= 0 ? 'text-[var(--accent-green)]' : 'text-[var(--accent-red)]'} icon="💰" />
+      </div>
+
+      {/* Risk Stats Row */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <RiskStatCard
+          label="Sortino Ratio"
+          value={sortino.toFixed(2)}
+          quality={sortino >= 2 ? 'good' : sortino >= 1 ? 'ok' : 'bad'}
+          desc="Downside-adjusted"
+        />
+        <RiskStatCard
+          label="1-Day VaR 95%"
+          value={`$${Math.abs(var95).toFixed(0)}`}
+          quality="warn"
+          desc={var95 < 0 ? 'Potential loss' : 'Potential gain'}
+        />
+        <RiskStatCard
+          label="Annual Volatility"
+          value={`${annualVolatility.toFixed(1)}%`}
+          quality={annualVolatility > 80 ? 'bad' : annualVolatility > 40 ? 'ok' : 'good'}
+          desc="Portfolio std dev"
+        />
+        <RiskStatCard
+          label="Win/Loss Ratio"
+          value={avgLoss > 0 ? `${(avgWin / avgLoss).toFixed(1)}:1` : '∞:1'}
+          quality={avgLoss > 0 && (avgWin / avgLoss) >= 1.5 ? 'good' : 'ok'}
+          desc={`Avg +$${avgWin.toFixed(0)} / -$${avgLoss.toFixed(0)}`}
+        />
       </div>
 
       {/* Equity Curve */}
@@ -450,6 +490,31 @@ function MetricCard({ title, value, valueClass = 'text-[var(--text-primary)]', i
         </div>
         <span className="text-lg">{icon}</span>
       </div>
+    </div>
+  );
+}
+
+// Risk stat card sub-component
+function RiskStatCard({ label, value, quality = 'ok', desc }) {
+  const borderColor = {
+    good: 'border-[var(--accent-green)]/30',
+    ok: 'border-[var(--accent-amber)]/30',
+    bad: 'border-[var(--accent-red)]/30',
+    warn: 'border-[var(--accent-amber)]/30',
+  }[quality] || 'border-[var(--border)]';
+
+  const textColor = {
+    good: 'text-[var(--accent-green)]',
+    ok: 'text-[var(--accent-amber)]',
+    bad: 'text-[var(--accent-red)]',
+    warn: 'text-[var(--accent-amber)]',
+  }[quality] || 'text-[var(--text-primary)]';
+
+  return (
+    <div className={`bg-[var(--bg-card)] rounded-xl border ${borderColor} p-3`}>
+      <p className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wide mb-1">{label}</p>
+      <p className={`text-lg font-bold ${textColor}`}>{value}</p>
+      <p className="text-[10px] text-[var(--text-muted)] mt-0.5">{desc}</p>
     </div>
   );
 }
