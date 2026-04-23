@@ -2,8 +2,8 @@
 // Returns bot cron health, alerts, and basic status without full account/position fetch
 // Designed for external monitoring services (cron-job.org, UptimeRobot, etc.)
 
-import { getHealth, getAlerts } from "./lib/health-store.js";
-import { getAccount, getPositions } from "./lib/alpaca-client.js";
+import { getHealth, getAlerts } from "./lib/health-store.mjs";
+import { getAccount, getPositions } from "./lib/alpaca-client.mjs";
 
 export default async (req) => {
   try {
