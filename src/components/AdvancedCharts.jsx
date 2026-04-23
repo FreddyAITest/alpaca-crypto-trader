@@ -232,7 +232,7 @@ export default function AdvancedCharts() {
             bbLower.push({ time: t, value: bollinger.lower[i] });
           }
         }
-        const bbStyle = { color: cssVar('--accent-indigo'), lineWidth: 1 };
+        const bbStyle = { color: getComputedStyle(document.documentElement).getPropertyValue('--accent-indigo').trim() || '#7c4dff', lineWidth: 1 };
         candleChart.addLineSeries({ ...bbStyle, lineStyle: 0, title: 'BB Mid' }).setData(bbMid);
         candleChart.addLineSeries({ ...bbStyle, lineStyle: 2, title: 'BB Upper' }).setData(bbUpper);
         candleChart.addLineSeries({ ...bbStyle, lineStyle: 2, title: 'BB Lower' }).setData(bbLower);

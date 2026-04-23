@@ -76,7 +76,7 @@ export default function RSIChart() {
       return (
         <div className="bg-[var(--bg-input)] border border-[var(--border)] rounded-lg p-3 shadow-xl">
           <p className="text-xs text-[var(--text-muted)]">{label}</p>
-          <p className="text-sm font-bold text-white">RSI({period}): {val}</p>
+          <p className="text-sm font-bold text-[var(--text-primary)]">RSI({period}): {val}</p>
           <p className={`text-xs ${val > 70 ? 'text-[var(--accent-red)]' : val < 30 ? 'text-[var(--accent-green)]' : 'text-[var(--text-muted)]'}`}>
             {val > 70 ? 'Overbought' : val < 30 ? 'Oversold' : 'Neutral'}
           </p>
