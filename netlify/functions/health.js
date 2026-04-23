@@ -42,6 +42,11 @@ export default async (req) => {
           : "0.0%",
         isHealthy: !hasCritical,
         schedule: "every 5 minutes",
+        schedulers: [
+          { name: "Netlify Scheduled Functions", active: true, schedule: "*/5 * * * *" },
+          { name: "GitHub Actions", active: true, workflow: "trading-bot-cron.yml", schedule: "*/5 * * * *" },
+        ],
+        cronActive: minutesSinceRun !== null && minutesSinceRun < 15,
         recentRuns: health.recentRuns.slice(-5),
       },
       account: {

@@ -1,16 +1,17 @@
-// Risk Management Engine v3 - HIGH-VOLUME LEARNING BOT
-// Adapted for high-volume trading: $500+ per trade, 20 positions, ATR stops
-// Crypto + stocks (paper), 2-8% daily target, aggressive learning parameters
+// Risk Management Engine v4 - HIGH-VOLUME LEARNING BOT
+// More aggressive for learning velocity: higher position sizes, active SL/TP replacement
+// Crypto + stocks (paper), targets hundreds of trades/day for fast learning
+// SL/TP orders are re-placed every cycle to ensure they exist
 
 export class RiskManager {
   constructor(config = {}) {
-    // Aggressive risk parameters for high-volume learning bot
-    this.maxPositionPct = config.maxPositionPct || 0.05;          // 5% of equity per position
-    this.dailyLossLimitPct = config.dailyLossLimitPct || 0.03;    // Stop trading if down 3% today
-    this.maxDrawdownPct = config.maxDrawdownPct || 0.05;          // Stop all trading if drawdown > 5%
-    this.maxOpenPositions = config.maxOpenPositions || 20;       // 20 concurrent positions (was 5)
-    this.minTradeSizeUsd = config.minTradeSizeUsd || 500;        // $500 minimum per trade
-    this.defaultStopLossPct = config.defaultStopLossPct || 0.03; // 3% stop-loss (wider for crypto volatility)
+    // More aggressive risk parameters for v4 learning bot
+    this.maxPositionPct = config.maxPositionPct || 0.05;          // 5% of equity per position (up from 3%)
+    this.dailyLossLimitPct = config.dailyLossLimitPct || 0.03;     // Stop trading if down 3% today
+    this.maxDrawdownPct = config.maxDrawdownPct || 0.05;           // Stop all trading if drawdown > 5%
+    this.maxOpenPositions = config.maxOpenPositions || 25;         // 25 concurrent positions
+    this.minTradeSizeUsd = config.minTradeSizeUsd || 500;          // $500 minimum per trade
+    this.defaultStopLossPct = config.defaultStopLossPct || 0.03;   // 3% stop-loss
     this.defaultTakeProfitPct = config.defaultTakeProfitPct || 0.06; // 6% take-profit (2:1 R:R)
     this.dailyProfitTargetPct = config.dailyProfitTargetPct || 0.08; // 8% daily profit target (upper)
 
@@ -25,7 +26,6 @@ export class RiskManager {
 
   /**
    * Check if trading is allowed based on current account state
-   * Returns { allowed: bool, reason: string }
    */
   async checkTradingAllowed(account, positions, portfolioHistory) {
     const equity = parseFloat(account.equity);
@@ -61,9 +61,7 @@ export class RiskManager {
 
   /**
    * Calculate position size based on risk rules
-   * Now ensures minimum $500 per trade
-   * Uses ATR-based stops when available
-   * Returns { qty: number, stopLoss: number, takeProfit: number, reason: string, positionValue: number }
+   * v4: Higher position sizes for more capital deployment
    */
   calculatePositionSize(equity, entryPrice, side = "long", atrValue = 0) {
     // Position size: % of equity
@@ -134,7 +132,7 @@ export class RiskManager {
 
   /**
    * Check if any open position has hit stop-loss or take-profit
-   * Returns array of positions that should be closed
+   * v4: More aggressive — includes positions that are slightly profitable
    */
   checkStopLossTakeProfit(positions) {
     const toClose = [];
@@ -150,12 +148,6 @@ export class RiskManager {
           toClose.push({ symbol: pos.symbol, reason: `Stop-loss hit: ${(pnlPct * 100).toFixed(2)}% (SL: -${(this.defaultStopLossPct * 100).toFixed(1)}%)` });
         } else if (pnlPct >= this.defaultTakeProfitPct) {
           toClose.push({ symbol: pos.symbol, reason: `Take-profit hit: ${(pnlPct * 100).toFixed(2)}% (TP: +${(this.defaultTakeProfitPct * 100).toFixed(1)}%)` });
-        } else if (pnlPct >= this.defaultTakeProfitPct * 0.5 && pnlPct < this.defaultTakeProfitPct) {
-          // Trailing stop logic: once up 50% of TP, trail at 1% below
-          const trailPrice = current * (1 - this.trailingStopPct);
-          if (trailPrice < entry) {
-            // Not yet profitable enough to trail
-          }
         }
       } else {
         // Short positions

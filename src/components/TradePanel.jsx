@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useLivePrices } from '../hooks/useLivePrices';
 
 const POPULAR_CRYPTOS = [
   { symbol: 'BTC/USD', label: 'Bitcoin', icon: '₿' },
@@ -18,6 +19,13 @@ export default function TradePanel({ onTrade, positions, defaultSymbol, onSymbol
   const [orderType, setOrderType] = useState('market');
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState(null);
+  const { prices: livePrices, flashState } = useLivePrices(5000);
+
+  // Get live price for the selected symbol
+  const selectedPrice = livePrices?.[symbol]?.price;
+  const selectedChange = livePrices?.[symbol]?.dailyChange;
+  const selectedBid = livePrices?.[symbol]?.bid;
+  const selectedAsk = livePrices?.[symbol]?.ask;
 
   useEffect(() => {
     if (defaultSymbol) {
@@ -61,22 +69,45 @@ export default function TradePanel({ onTrade, positions, defaultSymbol, onSymbol
       <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-4">
         <h3 className="text-sm font-medium text-[var(--text-muted)] mb-3">Quick Select</h3>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          {POPULAR_CRYPTOS.map(crypto => (
-            <button
-              key={crypto.symbol}
-              onClick={() => setSymbol(crypto.symbol)}
-              className={`px-3 py-2 rounded-lg text-sm transition-all ${
-                symbol === crypto.symbol
-                  ? 'bg-[var(--accent-blue)]/20 text-[var(--accent-blue)] border border-[var(--accent-blue)]/50'
-                  : positionSymbols.has(crypto.symbol)
-                  ? 'bg-[var(--bg-card)] text-[var(--text-primary)] border border-[var(--accent-green)]/30 hover:border-[var(--accent-blue)]/50'
-                  : 'bg-[var(--bg-secondary)] text-[var(--text-primary)] border border-[var(--border)] hover:border-[var(--accent-blue)]/50'
-              }`}
-            >
-              <span className="block text-lg">{crypto.icon}</span>
-              <span className="block text-xs mt-0.5">{crypto.label}</span>
-            </button>
-          ))}
+          {POPULAR_CRYPTOS.map(crypto => {
+            const priceInfo = livePrices?.[crypto.symbol];
+            const price = priceInfo?.price;
+            const change = priceInfo?.dailyChange;
+            const flash = flashState[crypto.symbol];
+            return (
+              <button
+                key={crypto.symbol}
+                onClick={() => setSymbol(crypto.symbol)}
+                className={`px-3 py-2 rounded-lg text-sm transition-all relative overflow-hidden ${
+                  symbol === crypto.symbol
+                    ? 'bg-[var(--accent-blue)]/20 text-[var(--accent-blue)] border border-[var(--accent-blue)]/50'
+                    : positionSymbols.has(crypto.symbol)
+                    ? 'bg-[var(--bg-card)] text-[var(--text-primary)] border border-[var(--accent-green)]/30 hover:border-[var(--accent-blue)]/50'
+                    : 'bg-[var(--bg-secondary)] text-[var(--text-primary)] border border-[var(--border)] hover:border-[var(--accent-blue)]/50'
+                } ${flash === 'up' ? 'bg-[var(--accent-green)]/10' : flash === 'down' ? 'bg-[var(--accent-red)]/10' : ''}`}
+              >
+                {flash && (
+                  <span className={`absolute inset-0 opacity-15 pointer-events-none ${
+                    flash === 'up' ? 'bg-[var(--accent-green)]' : 'bg-[var(--accent-red)]'
+                  }`} style={{ animation: 'flash-fade 0.5s ease-out forwards' }} />
+                )}
+                <span className="block text-lg">{crypto.icon}</span>
+                <span className="block text-xs mt-0.5">{crypto.label}</span>
+                {price != null && (
+                  <span className={`block text-[10px] font-mono ${
+                    flash === 'up' ? 'text-[var(--accent-green)]' : flash === 'down' ? 'text-[var(--accent-red)]' : 'text-[var(--text-muted)]'
+                  }`}>
+                    ${price >= 1 ? price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : price.toFixed(6)}
+                  </span>
+                )}
+                {change != null && (
+                  <span className={`block text-[10px] font-mono ${change >= 0 ? 'text-[var(--accent-green)]' : 'text-[var(--accent-red)]'}`}>
+                    {change >= 0 ? '+' : ''}{change.toFixed(2)}%
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -92,6 +123,30 @@ export default function TradePanel({ onTrade, positions, defaultSymbol, onSymbol
             className="w-full bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg px-3 py-2 text-[var(--text-primary)] text-sm focus:border-[var(--accent-blue)] focus:outline-none"
             placeholder="e.g., BTC/USD"
           />
+          {/* Live price info for selected symbol */}
+          {selectedPrice != null && (
+            <div className="flex items-center gap-3 mt-1.5 text-xs font-mono">
+              <span className={`text-[var(--text-primary)] font-semibold ${
+                flashState[symbol] === 'up' ? 'text-[var(--accent-green)]' : flashState[symbol] === 'down' ? 'text-[var(--accent-red)]' : ''
+              }`}>
+                ${selectedPrice >= 1 ? selectedPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : selectedPrice.toFixed(6)}
+              </span>
+              {selectedChange != null && (
+                <span className={selectedChange >= 0 ? 'text-[var(--accent-green)]' : 'text-[var(--accent-red)]'}>
+                  {selectedChange >= 0 ? '+' : ''}{selectedChange.toFixed(2)}%
+                </span>
+              )}
+              {selectedBid > 0 && selectedAsk > 0 && (
+                <span className="text-[var(--text-muted)]">
+                  Bid: ${selectedBid.toFixed(2)} / Ask: ${selectedAsk.toFixed(2)}
+                </span>
+              )}
+              <span className="flex items-center gap-1 text-[var(--accent-green)]">
+                <span className="inline-block w-1 h-1 rounded-full bg-[var(--accent-green)] animate-pulse"></span>
+                LIVE
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Quantity */}
@@ -197,6 +252,14 @@ export default function TradePanel({ onTrade, positions, defaultSymbol, onSymbol
           ))}
         </div>
       )}
+      
+      {/* Flash animation keyframes */}
+      <style>{`
+        @keyframes flash-fade {
+          0% { opacity: 0.3; }
+          100% { opacity: 0; }
+        }
+      `}</style>
     </div>
   );
 }

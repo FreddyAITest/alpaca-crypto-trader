@@ -14,6 +14,9 @@ import RSIChart from './components/RSIChart';
 import MACDChart from './components/MACDChart';
 import PnLBreakdownChart from './components/PnLBreakdownChart';
 import CryptoTicker from './components/CryptoTicker';
+import RiskDashboard from './components/RiskDashboard';
+import TradeAlerts from './components/TradeAlerts';
+import DailyPnLTarget from './components/DailyPnLTarget';
 
 function ThemeToggle({ theme, toggleTheme }) {
   return (
@@ -149,6 +152,7 @@ function App() {
     { id: 'scanner', label: '🔍 Scanner' },
     { id: 'charts', label: '📈 Charts' },
     { id: 'analytics', label: '📊 Analytics' },
+    { id: 'risk', label: '🛡️ Risk' },
     { id: 'pnl', label: '💹 P&L' },
     { id: 'positions', label: '💼 Positions' },
     { id: 'orders', label: '📋 Orders' },
@@ -168,6 +172,9 @@ function App() {
 
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]">
+      {/* Trade Alerts (toast overlay) */}
+      <TradeAlerts />
+
       {/* Header */}
       <header className="border-b border-[var(--border)] px-4 md:px-6 py-3 md:py-4">
         <div className="max-w-[1440px] mx-auto flex items-center justify-between">
@@ -312,6 +319,14 @@ function App() {
           <div className="space-y-6">
             <h2 className="text-lg font-semibold text-[var(--text-primary)]">📊 Trade Performance Analytics</h2>
             <PerformanceAnalytics />
+          </div>
+        )}
+
+        {activeTab === 'risk' && (
+          <div className="space-y-6">
+            <h2 className="text-lg font-semibold text-[var(--text-primary)]">🛡️ Risk Dashboard</h2>
+            <DailyPnLTarget />
+            <RiskDashboard />
           </div>
         )}
 

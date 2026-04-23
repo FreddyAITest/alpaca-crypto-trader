@@ -256,10 +256,41 @@ export default function BotStatus() {
         </div>
       )}
 
+      {/* Cron Scheduling Status */}
+      <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] p-4">
+        <h3 className="text-sm font-medium text-[var(--text-muted)] mb-3">⏱️ Scheduling</h3>
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between">
+            <span className="text-[var(--text-muted)]">Netlify Cron</span>
+            <span className="text-[var(--accent-green)]">Every 5 min (built-in)</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-[var(--text-muted)]">GitHub Actions</span>
+            <span className="text-[var(--accent-blue)]">
+              {cron.lastRun ? 'Configured' : 'Pending setup'}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-[var(--text-muted)]">Schedule</span>
+            <span className="text-[var(--text-primary)]">24/7 (crypto markets)</span>
+          </div>
+          {cron.isHealthy && (
+            <div className="flex justify-between">
+              <span className="text-[var(--text-muted)]">Health</span>
+              <span className="text-[var(--accent-green)]">
+                Running {cron.minutesSinceLastRun != null && cron.minutesSinceLastRun < 10
+                  ? `(last ${cron.minutesSinceLastRun}m ago)`
+                  : '(active)'}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Manual Trigger */}
       <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] p-4">
         <div className="flex items-center justify-between mb-3">
-          <p className="text-xs text-[var(--text-muted)]">Bot runs automatically every 5 min. Run manually to scan now.</p>
+          <p className="text-xs text-[var(--text-muted)]">Automatic cron runs every 5 min. Run manually to scan now.</p>
           <button
             onClick={handleRunBot}
             disabled={running}

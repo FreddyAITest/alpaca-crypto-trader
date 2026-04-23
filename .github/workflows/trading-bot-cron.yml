@@ -1,41 +1,79 @@
-name: Trading Bot Cron Trigger
+name: Trading Bot Cron
 
+# Runs every 5 minutes during crypto market hours (24/7 for crypto)
+# This serves as a redundant scheduler alongside Netlify's built-in cron
+# If Netlify's scheduled functions miss a run, this catches it
 on:
   schedule:
-    # Run every 5 minutes, 24/7 (crypto markets never close)
+    # Every 5 minutes, 24/7 (crypto never sleeps)
     - cron: '*/5 * * * *'
   workflow_dispatch:
-    # Allow manual trigger from GitHub UI
+    inputs:
+      force_run:
+        description: 'Force a bot run regardless of schedule'
+        required: false
+        default: 'false'
 
 jobs:
   trigger-bot:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    
     steps:
       - name: Trigger Trading Bot Cron
+        env:
+          BOT_URL: ${{ secrets.TRADE_BOT_URL }}
+          BOT_SECRET: ${{ secrets.TRADE_BOT_SECRET }}
         run: |
-          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
-            "https://cerulean-dieffenbachia-f63827.netlify.app/.netlify/functions/trading-bot-cron" \
-            -H "Content-Type: application/json" \
-            -H "Accept: application/json" \
-            --max-time 240)
+          # Use the Netlify function URL for the cron endpoint
+          # Falls back to the known Netlify deployment URL if secret not set
+          URL="${BOT_URL:-https://cerulean-dieffenbachia-f63827.netlify.app/.netlify/functions/trading-bot-cron}"
           
-          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
-          BODY=$(echo "$RESPONSE" | sed '$d')
+          echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Triggering trading bot cron..."
+          
+          # Build headers
+          HEADER_ARGS=("-s" "-S" "-f" "--max-time" "240" "-X" "POST")
+          
+          # Add auth header if secret is set
+          if [ -n "$BOT_SECRET" ]; then
+            HEADER_ARGS+=("-H" "Authorization: Bearer $BOT_SECRET")
+          fi
+          
+          # Trigger the bot
+          HTTP_CODE=$(curl "${HEADER_ARGS[@]}" -o /tmp/bot-response.json -w "%{http_code}" "$URL" 2>/tmp/curl-stderr.txt)
+          CURL_EXIT=$?
           
           echo "HTTP Status: $HTTP_CODE"
-          echo "Response (first 500 chars):"
-          echo "$BODY" | head -c 500
+          echo "Curl exit: $CURL_EXIT"
           
+          if [ $CURL_EXIT -ne 0 ]; then
+            echo "::warning::Curl failed with exit code $CURL_EXIT"
+            cat /tmp/curl-stderr.txt
+            # Don't fail the workflow - Netlify might have a transient issue
+            exit 0
+          fi
+          
+          # Show response (truncated for security)
+          echo "Response:"
+          cat /tmp/bot-response.json | head -c 2000
+          echo ""
+          
+          # Check if bot responded successfully
           if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
-            echo "SUCCESS: Bot triggered successfully"
+            echo "✅ Bot cron triggered successfully (HTTP $HTTP_CODE)"
+          elif [ "$HTTP_CODE" -ge 500 ]; then
+            echo "::warning::Bot returned server error (HTTP $HTTP_CODE)"
           else
-            echo "FAILED: Bot returned HTTP $HTTP_CODE"
-            exit 1
+            echo "::warning::Unexpected HTTP $HTTP_CODE"
           fi
 
       - name: Health Check
-        if: always()
+        env:
+          BOT_URL: ${{ secrets.TRADE_BOT_URL }}
+          BOT_SECRET: ${{ secrets.TRADE_BOT_SECRET }}
         run: |
-          echo "--- Health Check ---"
-          curl -s "https://cerulean-dieffenbachia-f63827.netlify.app/api/health" | python3 -m json.tool 2>/dev/null || echo "Health check failed"
+          # Quick health check after bot run
+          BASE_URL="${BOT_URL:-https://cerulean-dieffenbachia-f63827.netlify.app}"
+          HEALTH_URL="${BASE_URL}/.netlify/functions/health"
+          
+          curl -s --max-time 10 "$HEALTH_URL" | head -c 1000 || true

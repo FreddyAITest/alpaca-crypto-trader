@@ -52,6 +52,10 @@ export async function cancelOrder(orderId) {
   return alpacaFetch(`${ALPACA_BASE}/orders/${orderId}`, { method: "DELETE" });
 }
 
+export async function getOrder(orderId) {
+  return alpacaFetch(`${ALPACA_BASE}/orders/${orderId}`);
+}
+
 // Portfolio history
 export async function getPortfolioHistory(period = "1D", timeframe = "1Hr") {
   return alpacaFetch(

@@ -1,15 +1,16 @@
-// Trading Bot v3 - HIGH-VOLUME LEARNING BOT
+// Trading Bot v4 - HIGH-VOLUME LEARNING BOT
+// Key v4 improvements:
+// 1. SL/TP orders now wait for buy fill and use actual filled qty
+// 2. SL/TP orders are re-confirmed every cycle (replaceStopsAndTargets)
+// 3. More aggressive position rotation for higher trade velocity
+// 4. Bottom performers rotated out each cycle
+// 5. Higher position sizes (5% from 3%)
 // Runs every 5 minutes, scans 60+ crypto pairs + stocks during market hours
-// Multi-strategy: momentum + scalping + mean-reversion
-// Multi-timeframe: 1H + 15M + 5M analysis
-// $500+ per trade, 25 max positions, adaptive parameters from trade outcomes
-// Position rotation for high trade throughput
-// Targets 2-8% daily returns with aggressive learning signals
 
 import { getAccount, getPositions, getPortfolioHistory, getCryptoBars, getCryptoSnapshot, getActivities, getStockSnapshot, isMarketOpen, toDataSymbol, toTradeSymbol } from "./lib/alpaca-client.js";
 import { RiskManager } from "./lib/risk-manager.js";
 import { analyzeSymbol, scanSymbols, scanMovers, scanStockMovers, WATCH_LIST, STOCK_UNIVERSE, recordTradeOutcome, getLearningState } from "./lib/strategy.js";
-import { executeBuy, liquidatePosition, executeSignal, executeStockSignal, closeWorstPositions, rotateStalePositions } from "./lib/executor.js";
+import { executeBuy, liquidatePosition, executeSignal, executeStockSignal, closeWorstPositions, rotateStalePositions, rotateBottomPerformers, replaceStopsAndTargets, cancelSellOrders } from "./lib/executor.js";
 import { recordRun } from "./lib/health-store.js";
 
 // Bot state stored in memory (resets on cold start)
@@ -37,7 +38,7 @@ export default async (req) => {
   };
 
   try {
-    log("=== Trading Bot v3 (HIGH-VOLUME LEARNING) Started ===");
+    log("=== Trading Bot v4 (HIGH-VOLUME LEARNING) Started ===");
 
     // Reset daily trade counter at midnight
     const today = new Date().toISOString().slice(0, 10);
@@ -56,7 +57,7 @@ export default async (req) => {
 
     // 2. Get current positions
     const positions = await getPositions();
-    log(`Open positions: ${positions.length}/${25} slots`);
+    log(`Open positions: ${positions.length}/${25} slots, total exposure: $${positions.reduce((s, p) => s + parseFloat(p.market_value || 0), 0).toFixed(2)}`);
 
     // 3. Learn from recent trade outcomes
     try {
@@ -75,12 +76,12 @@ export default async (req) => {
       log(`Learning: could not fetch activities - ${e.message}`);
     }
 
-    // 4. Risk manager - v3 config for high volume
+    // 4. Risk manager - v4 config: more aggressive for learning velocity
     const riskManager = new RiskManager({
-      maxPositionPct: 0.03,       // 3% per position (more diversification)
+      maxPositionPct: 0.05,       // 5% per position (up from 3%)
       dailyLossLimitPct: 0.03,
       maxDrawdownPct: 0.05,
-      maxOpenPositions: 25,       // Up from 15
+      maxOpenPositions: 25,
       minTradeSizeUsd: 500,
       defaultStopLossPct: 0.03,
       defaultTakeProfitPct: 0.06,
@@ -106,23 +107,62 @@ export default async (req) => {
       }
     }
 
-    // 6b. Close underperformers if portfolio is crowded
-    if (positions.length > 15) {
-      log("Portfolio has 15+ positions, closing underperformers...");
-      const closed = await closeWorstPositions(positions, 0.02);
+    // 6b. Close underperformers — more aggressive threshold (1.5% loss)
+    if (positions.length > 10) {
+      log("Closing underperformers (threshold: -1.5%)...");
+      const closed = await closeWorstPositions(positions, 0.015);
       for (const c of closed) {
         actions.push({ type: "close", symbol: c.symbol, reason: `Underperformer: ${(c.pnl * 100).toFixed(1)}%`, result: c.result });
         botState.dailyTradeCount++;
       }
+      if (closed.length > 0) log(`Closed ${closed.length} underperformers`);
     }
 
-    // 6c. Rotate stale/tiny positions to free up slots for new signals
-    if (positions.length >= 20) {
-      log("Near position limit, rotating stale positions...");
-      const rotated = await rotateStalePositions(positions);
+    // 6c. Rotate stale/tiny positions to free up slots
+    if (positions.length >= 15) {
+      log("Rotating stale positions...");
+      const rotated = await rotateStalePositions(positions, equity);
       for (const r of rotated) {
         actions.push({ type: "rotate", symbol: r.symbol, reason: r.reason, result: r.result });
         botState.dailyTradeCount++;
+      }
+      if (rotated.length > 0) log(`Rotated ${rotated.length} stale positions`);
+    }
+
+    // 6d. NEW v4: Rotate bottom 2 performers every cycle for learning velocity
+    if (positions.length >= 8) {
+      log("Rotating bottom performers for velocity...");
+      const bottomRotated = await rotateBottomPerformers(positions, 2);
+      for (const r of bottomRotated) {
+        actions.push({ type: "rotate_bottom", symbol: r.symbol, reason: r.reason, result: r.result });
+        botState.dailyTradeCount++;
+      }
+      if (bottomRotated.length > 0) log(`Rotated ${bottomRotated.length} bottom performers`);
+    }
+
+    // 6e. NEW v4: Re-place missing SL/TP orders for all open positions
+    // This is critical — ensures every position has stop-loss and take-profit protection
+    try {
+      const sltpResults = await replaceStopsAndTargets(positions, 0.03, 0.06);
+      for (const r of sltpResults) {
+        if (r.action && r.action !== "skip") {
+          actions.push({ type: "sltp_replace", symbol: r.symbol, action: r.action, price: r.price });
+          log(`SL/TP Replace: ${r.symbol} - ${r.action}${r.price ? ` @ $${r.price}` : ''}${r.reason ? ` (${r.reason})` : ''}`);
+        }
+      }
+    } catch (e) {
+      log(`SL/TP replace failed: ${e.message}`);
+    }
+
+    // Refresh positions after closes
+    let currentPositions = positions;
+    if (slTpActions.length > 0 || actions.some(a => a.type === "close" || a.type === "rotate" || a.type === "rotate_bottom")) {
+      try {
+        currentPositions = await getPositions();
+        log(`Positions after closes: ${currentPositions.length}`);
+      } catch (e) {
+        log(`Could not refresh positions: ${e.message}`);
+        currentPositions = positions;
       }
     }
 
@@ -278,9 +318,9 @@ export default async (req) => {
         const dataSym = toDataSymbol(signal.symbol);
         signal.currentPrice = priceMap[signal.symbol] || priceMap[dataSym] || priceMap[tradeSym] || 0;
         
-        if (signal.currentPrice > 0 && positions.length + newTrades.length < 25) {
+        if (signal.currentPrice > 0 && currentPositions.length + newTrades.length < 25) {
           signal.symbol = tradeSym;
-          const result = await executeSignal(signal, riskManager, equity, positions);
+          const result = await executeSignal(signal, riskManager, equity, currentPositions);
           actions.push({ type: "trade", signal, result });
           log(`  [CRYPTO] Executed: ${result.message}`);
           if (result.success) {
@@ -303,12 +343,12 @@ export default async (req) => {
           
           // Execute on top stock movers (long direction only)
           for (const mover of stockMovers.slice(0, 5)) {
-            if (mover.direction === "up" && positions.length + newTrades.length < 25) {
+            if (mover.direction === "up" && currentPositions.length + newTrades.length < 25) {
               log(`  [STOCKS] ${mover.symbol}: UP ${mover.dailyChange.toFixed(1)}% at $${mover.price.toFixed(2)}`);
               try {
                 const result = await executeStockSignal(
                   { symbol: mover.symbol, signal: "buy", price: mover.price, strategy: "stock-momentum" },
-                  riskManager, equity, positions
+                  riskManager, equity, currentPositions
                 );
                 actions.push({ type: "stock-trade", signal: { symbol: mover.symbol, strategy: "stock-momentum" }, result });
                 if (result.success) {
@@ -331,7 +371,7 @@ export default async (req) => {
     }
 
     // 8. Build risk summary and learning state
-    const riskSummary = riskManager.getRiskSummary(account, positions);
+    const riskSummary = riskManager.getRiskSummary(account, currentPositions);
     const learningInfo = getLearningState();
 
     botState.lastRun = runStart;
@@ -349,18 +389,18 @@ export default async (req) => {
 
     const response = {
       status: "ok",
-      version: "3.0-high-volume",
+      version: "4.0-high-volume",
       runAt: runStart,
       risk: riskSummary,
       tradingAllowed: tradingAllowed.allowed,
       riskReason: tradingAllowed.reason,
-      positions: positions.length,
+      positions: currentPositions.length,
       cryptoSignals: signalsFound,
       stockSignals: stockSignalsFound,
       dailyTrades: botState.dailyTradeCount,
       actions: actions.map(a => ({
         type: a.type,
-        symbol: a.type === "close" || a.type === "rotate" ? a.symbol : a.signal?.symbol,
+        symbol: a.type === "close" || a.type === "rotate" || a.type === "rotate_bottom" ? a.symbol : a.signal?.symbol,
         strategy: a.signal?.strategy,
         reason: a.reason || a.signal?.reasons?.join("; "),
         success: a.result?.success,
@@ -384,7 +424,7 @@ export default async (req) => {
       },
     };
 
-    log(`=== Trading Bot v3 Completed: ${botState.dailyTradeCount} daily trades, ${signalsFound} crypto signals, ${stockSignalsFound} stock signals ===`);
+    log(`=== Trading Bot v4 Completed: ${botState.dailyTradeCount} daily trades, ${signalsFound} crypto signals, ${stockSignalsFound} stock signals ===`);
 
     // Persist health data for monitoring dashboard
     const runDurationMs = Date.now() - runStartMs;
@@ -403,7 +443,7 @@ export default async (req) => {
 
     return new Response(JSON.stringify({
       status: "error",
-      version: "3.0-high-volume",
+      version: "4.0-high-volume",
       error: err.message,
       stack: err.stack,
       logs,

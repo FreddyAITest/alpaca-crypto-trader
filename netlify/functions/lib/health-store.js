@@ -100,5 +100,15 @@ export async function getAlerts(health) {
     });
   }
 
+  // Alert: High error rate (over 50%)
+  if (health.totalRuns >= 10 && health.totalErrors / health.totalRuns > 0.5) {
+    alerts.push({
+      type: "high_error_rate",
+      severity: "warning",
+      message: `Error rate ${((health.totalErrors / health.totalRuns) * 100).toFixed(1)}% over ${health.totalRuns} runs`,
+      errorRate: (health.totalErrors / health.totalRuns),
+    });
+  }
+
   return alerts;
 }
