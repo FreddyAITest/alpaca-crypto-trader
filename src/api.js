@@ -105,6 +105,14 @@ export async function fetchAssets() {
   return res.json();
 }
 
+// Health Check API (lightweight, for monitoring)
+export async function fetchCronHealth() {
+  const res = await fetch(`${API_BASE}/health`, { headers: HEADERS });
+  // 503 = unhealthy but still returns JSON
+  if (res.status !== 200 && res.status !== 503) throw new Error(`Health check failed: ${res.status}`);
+  return res.json();
+}
+
 // Bot API
 export async function fetchBotStatus() {
   const res = await fetch(`${API_BASE}/trading-bot/status`, { headers: HEADERS });

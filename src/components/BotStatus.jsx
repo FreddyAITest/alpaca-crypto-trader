@@ -30,7 +30,6 @@ export default function BotStatus() {
     try {
       const result = await runBotManual();
       setRunResult(result);
-      // Refresh status after run
       await fetchStatus();
     } catch (e) {
       setRunResult({ status: 'error', error: e.message });
@@ -39,9 +38,27 @@ export default function BotStatus() {
     }
   };
 
+  // Format relative time
+  const formatTimeAgo = (isoStr) => {
+    if (!isoStr) return 'Never';
+    const diff = Date.now() - new Date(isoStr).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    return `${hrs}h ${mins % 60}m ago`;
+  };
+
+  // Format duration
+  const formatDuration = (ms) => {
+    if (!ms) return '-';
+    if (ms < 1000) return `${ms}ms`;
+    return `${(ms / 1000).toFixed(1)}s`;
+  };
+
   if (loading) {
     return (
-      <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-6 text-center">
+      <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] p-6 text-center">
         <div className="animate-pulse text-[var(--text-muted)]">Loading bot status...</div>
       </div>
     );
@@ -49,7 +66,7 @@ export default function BotStatus() {
 
   if (!status || status.status === 'error') {
     return (
-      <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--accent-red)]/30 p-4">
+      <div className="bg-[var(--surface)] rounded-xl border border-[var(--accent-red)]/30 p-4">
         <div className="flex items-center gap-2">
           <span className="text-xl">⚠️</span>
           <div>
@@ -62,6 +79,8 @@ export default function BotStatus() {
   }
 
   const risk = status.risk || {};
+  const cron = status.cron || {};
+  const cronAlerts = status.cronAlerts || [];
   const statusColor = risk.status === 'TRADING' ? 'text-[var(--accent-green)]'
     : risk.status === 'STOPPED_PROFIT' ? 'text-[var(--accent-amber)]'
     : 'text-[var(--accent-red)]';
@@ -71,6 +90,8 @@ export default function BotStatus() {
   const statusIcon = risk.status === 'TRADING' ? '🟢'
     : risk.status === 'STOPPED_PROFIT' ? '🟡'
     : '🔴';
+
+  const cronHasCriticalAlerts = cronAlerts.some(a => a.severity === 'critical');
 
   return (
     <div className="space-y-4">
@@ -97,8 +118,100 @@ export default function BotStatus() {
         </div>
       </div>
 
+      {/* Cron Health Monitor */}
+      <div className={`rounded-xl border p-4 ${
+        cronHasCriticalAlerts ? 'bg-[var(--accent-red)]/10 border-[var(--accent-red)]/30'
+        : cronAlerts.length > 0 ? 'bg-[var(--accent-amber)]/10 border-[var(--accent-amber)]/30'
+        : 'bg-[var(--surface)] border-[var(--border)]'
+      }`}>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-medium text-[var(--text-muted)]">
+            {cronHasCriticalAlerts ? '🔴' : cronAlerts.length > 0 ? '🟡' : '🟢'} Cron Health
+          </h3>
+          <span className={`text-xs font-medium px-2 py-0.5 rounded ${
+            cronHasCriticalAlerts ? 'bg-[var(--accent-red)]/20 text-[var(--accent-red)]'
+            : cronAlerts.length > 0 ? 'bg-[var(--accent-amber)]/20 text-[var(--accent-amber)]'
+            : 'bg-[var(--accent-green)]/20 text-[var(--accent-green)]'
+          }`}>
+            {cronHasCriticalAlerts ? 'UNHEALTHY' : cronAlerts.length > 0 ? 'DEGRADED' : 'HEALTHY'}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 text-sm">
+          <div className="flex justify-between">
+            <span className="text-[var(--text-muted)]">Last Run</span>
+            <span className="text-[var(--text-primary)]">{formatTimeAgo(cron.lastRun)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-[var(--text-muted)]">Last Success</span>
+            <span className="text-[var(--text-primary)]">{formatTimeAgo(cron.lastSuccess)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-[var(--text-muted)]">Consecutive Errors</span>
+            <span className={cron.consecutiveErrors > 0 ? 'text-[var(--accent-red)] font-bold' : 'text-[var(--text-primary)]'}>
+              {cron.consecutiveErrors ?? 0}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-[var(--text-muted)]">Error Rate</span>
+            <span className={parseFloat(cron.errorRate) > 10 ? 'text-[var(--accent-amber)]' : 'text-[var(--text-primary)]'}>
+              {cron.errorRate ?? '0'}%
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-[var(--text-muted)]">Total Runs</span>
+            <span className="text-[var(--text-primary)]">{cron.totalRuns ?? 0}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-[var(--text-muted)]">Schedule</span>
+            <span className="text-[var(--text-primary)] text-xs">{cron.schedule ?? 'every 5 min'}</span>
+          </div>
+        </div>
+
+        {/* Cron Alerts */}
+        {cronAlerts.length > 0 && (
+          <div className="mt-3 pt-3 border-t border-[var(--border)] space-y-1">
+            {cronAlerts.map((alert, i) => (
+              <div key={i} className="flex items-center gap-2 text-xs">
+                <span>{alert.severity === 'critical' ? '🔴' : '🟡'}</span>
+                <span className={alert.severity === 'critical' ? 'text-[var(--accent-red)]' : 'text-[var(--accent-amber)]'}>
+                  {alert.message}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Recent Run History */}
+        {cron.recentRuns && cron.recentRuns.length > 0 && (
+          <details className="mt-3">
+            <summary className="text-xs text-[var(--accent-blue)] cursor-pointer">
+              View run history ({cron.recentRuns.length} recent)
+            </summary>
+            <div className="mt-1 max-h-32 overflow-y-auto font-mono text-[10px] bg-[var(--bg-deep)] rounded p-2 space-y-0.5">
+              {cron.recentRuns.slice().reverse().map((run, i) => (
+                <div key={i} className="flex gap-2">
+                  <span className="text-[var(--text-muted)]">
+                    {new Date(run.time).toLocaleTimeString()}
+                  </span>
+                  <span className={run.success ? 'text-[var(--accent-green)]' : 'text-[var(--accent-red)]'}>
+                    {run.success ? 'OK' : 'ERR'}
+                  </span>
+                  {run.durationMs != null && (
+                    <span className="text-[var(--text-muted)]">{formatDuration(run.durationMs)}</span>
+                  )}
+                  {run.error && (
+                    <span className="text-[var(--accent-red)] truncate">{run.error}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </details>
+        )}
+      </div>
+
       {/* Risk Parameters */}
-      <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-4">
+      <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] p-4">
         <h3 className="text-sm font-medium text-[var(--text-muted)] mb-3">⚙️ Risk Configuration</h3>
         <div className="grid grid-cols-2 gap-3 text-sm">
           <div className="flex justify-between">
@@ -120,9 +233,9 @@ export default function BotStatus() {
         </div>
       </div>
 
-      {/* Alerts */}
+      {/* Alerts (existing - position alerts) */}
       {status.alerts && status.alerts.length > 0 && (
-        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--accent-amber)]/30 p-4">
+        <div className="bg-[var(--surface)] rounded-xl border border-[var(--accent-amber)]/30 p-4">
           <h3 className="text-sm font-medium text-[var(--accent-amber)] mb-2">🔔 Active Alerts</h3>
           {status.alerts.map((alert, i) => (
             <div key={i} className="text-sm py-1 flex items-center gap-2">
@@ -135,7 +248,7 @@ export default function BotStatus() {
       )}
 
       {/* Manual Trigger */}
-      <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-4">
+      <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] p-4">
         <div className="flex items-center justify-between mb-3">
           <p className="text-xs text-[var(--text-muted)]">Bot runs automatically every 5 min. Run manually to scan now.</p>
           <button
@@ -143,7 +256,7 @@ export default function BotStatus() {
             disabled={running}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               running
-                ? 'bg-[var(--bg-secondary)] text-[var(--text-muted)] cursor-not-allowed'
+                ? 'bg-[var(--surface-hover)] text-[var(--text-muted)] cursor-not-allowed'
                 : 'bg-[var(--accent-blue)] text-white hover:bg-[var(--accent-blue)]/80'
             }`}
           >
@@ -156,7 +269,7 @@ export default function BotStatus() {
           <div className={`mt-3 rounded-lg border p-3 text-xs ${
             runResult.status === 'error'
               ? 'bg-[var(--accent-red)]/10 border-[var(--accent-red)]/30'
-              : 'bg-[var(--bg-card)] border-[var(--border)]'
+              : 'bg-[var(--surface)] border-[var(--border)]'
           }`}>
             {runResult.status === 'error' ? (
               <div>
@@ -195,7 +308,7 @@ export default function BotStatus() {
                 {runResult.logs && runResult.logs.length > 0 && (
                   <details className="mt-2">
                     <summary className="text-[var(--accent-blue)] cursor-pointer">View logs ({runResult.logs.length})</summary>
-                    <div className="mt-1 max-h-40 overflow-y-auto font-mono text-[var(--text-muted)] bg-[var(--bg-primary)] rounded p-2">
+                    <div className="mt-1 max-h-40 overflow-y-auto font-mono text-[var(--text-muted)] bg-[var(--bg-deep)] rounded p-2">
                       {runResult.logs.map((log, i) => (
                         <div key={i}>{log}</div>
                       ))}

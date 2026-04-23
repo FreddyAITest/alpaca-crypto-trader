@@ -100,4 +100,49 @@ export async function getClock() {
   return alpacaFetch(`${ALPACA_BASE}/clock`);
 }
 
+// Symbol format helpers
+// Data API expects "BTC/USD" format (with slash)
+// Trade API expects "BTCUSD" format (no slash)
+export function toDataSymbol(symbol) {
+  // Ensure symbol has slash: "BTC/USD" or insert before "USD"
+  if (symbol.includes("/")) return symbol;
+  return symbol.replace("USD", "/USD");
+}
+
+export function toTradeSymbol(symbol) {
+  // Remove slash for order API: "BTC/USD" -> "BTCUSD"
+  return symbol.replace("/", "");
+}
+
+// Stock data (for stock scanner)
+export async function getStockSnapshot(symbols) {
+  const symbolList = Array.isArray(symbols) ? symbols.join(",") : symbols;
+  return alpacaFetch(
+    `${ALPACA_DATA_BASE}/stocks/us/snapshots?symbols=${symbolList}`
+  );
+}
+
+export async function getStockBars(symbols, timeframe = "1Hour", limit = 100) {
+  const end = new Date().toISOString();
+  let msPerBar;
+  switch (timeframe) {
+    case "1Min": msPerBar = 60000; break;
+    case "5Min": msPerBar = 300000; break;
+    case "15Min": msPerBar = 900000; break;
+    case "1Hour": msPerBar = 3600000; break;
+    case "1Day": msPerBar = 86400000; break;
+    default: msPerBar = 3600000;
+  }
+  const start = new Date(Date.now() - limit * msPerBar).toISOString();
+  const symbolList = Array.isArray(symbols) ? symbols.join(",") : symbols;
+  return alpacaFetch(
+    `${ALPACA_DATA_BASE}/stocks/us/bars?symbols=${symbolList}&timeframe=${timeframe}&start=${start}&end=${end}&limit=${limit}`
+  );
+}
+
+export async function isMarketOpen() {
+  const clock = await getClock();
+  return clock.is_open;
+}
+
 export { ALPACA_BASE, ALPACA_DATA_BASE, alpacaFetch };

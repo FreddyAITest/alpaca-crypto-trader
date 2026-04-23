@@ -1,8 +1,9 @@
-// Bot Status API - Returns current bot state and risk metrics
+// Bot Status API - Returns current bot state, risk metrics, and cron health
 // Called by the dashboard to display bot status
 
 import { getAccount, getPositions, getPortfolioHistory } from "./lib/alpaca-client.js";
 import { RiskManager } from "./lib/risk-manager.js";
+import { getHealth, getAlerts } from "./lib/health-store.js";
 
 export default async (req) => {
   try {
@@ -14,6 +15,38 @@ export default async (req) => {
     const tradingAllowed = await riskManager.checkTradingAllowed(account, positions, history);
     const riskSummary = riskManager.getRiskSummary(account, positions);
     const slTpStatus = riskManager.checkStopLossTakeProfit(positions);
+
+    // Fetch cron health from persistent store
+    let cronHealth = null;
+    let cronAlerts = [];
+    try {
+      const health = await getHealth();
+      cronAlerts = await getAlerts(health);
+
+      const minutesSinceRun = health.lastRun
+        ? Math.round((Date.now() - new Date(health.lastRun).getTime()) / 60000)
+        : null;
+
+      cronHealth = {
+        lastRun: health.lastRun,
+        lastSuccess: health.lastSuccess,
+        minutesSinceLastRun: minutesSinceRun,
+        consecutiveErrors: health.consecutiveErrors,
+        totalRuns: health.totalRuns,
+        totalErrors: health.totalErrors,
+        errorRate: health.totalRuns > 0
+          ? ((health.totalErrors / health.totalRuns) * 100).toFixed(1)
+          : "0.0",
+        isHealthy: cronAlerts.filter(a => a.severity === "critical").length === 0,
+        recentRuns: health.recentRuns.slice(-10),
+        schedule: "every 5 minutes",
+      };
+    } catch (e) {
+      cronHealth = {
+        error: `Could not fetch health: ${e.message}`,
+        isHealthy: false,
+      };
+    }
 
     const response = {
       status: "active",
@@ -42,6 +75,9 @@ export default async (req) => {
         type: s.reason.includes("Stop-loss") ? "stop_loss" : "take_profit",
         message: s.reason,
       })),
+      // Cron health monitoring data
+      cron: cronHealth,
+      cronAlerts: cronAlerts,
     };
 
     return new Response(JSON.stringify(response, null, 2), {
