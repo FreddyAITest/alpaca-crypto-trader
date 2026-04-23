@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 const POPULAR_CRYPTOS = [
   { symbol: 'BTC/USD', label: 'Bitcoin', icon: '₿' },
@@ -11,13 +11,20 @@ const POPULAR_CRYPTOS = [
   { symbol: 'MATIC/USD', label: 'Polygon', icon: '⬢' },
 ];
 
-export default function TradePanel({ onTrade, positions }) {
-  const [symbol, setSymbol] = useState('BTC/USD');
+export default function TradePanel({ onTrade, positions, defaultSymbol, onSymbolSelected }) {
+  const [symbol, setSymbol] = useState(defaultSymbol || 'BTC/USD');
   const [qty, setQty] = useState('0.001');
   const [side, setSide] = useState('buy');
   const [orderType, setOrderType] = useState('market');
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState(null);
+
+  useEffect(() => {
+    if (defaultSymbol) {
+      setSymbol(defaultSymbol);
+      onSymbolSelected?.();
+    }
+  }, [defaultSymbol]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -37,33 +44,33 @@ export default function TradePanel({ onTrade, positions }) {
   const positionSymbols = new Set(positions?.map(p => p.symbol) || []);
 
   return (
-    <div className="max-w-lg mx-auto space-y-6">
-      <h2 className="text-lg font-semibold text-white">Place Trade</h2>
+    <div className="space-y-6">
+      <h2 className="text-lg font-semibold text-[var(--text-primary)]">Place Trade</h2>
 
       {message && (
         <div className={`px-4 py-3 rounded-lg text-sm ${
-          message.type === 'success' 
-            ? 'bg-[#00c853]/10 text-[#00c853] border border-[#00c853]/30' 
-            : 'bg-[#ff1744]/10 text-[#ff1744] border border-[#ff1744]/30'
+          message.type === 'success'
+            ? 'bg-[var(--accent-green)]/10 text-[var(--accent-green)] border border-[var(--accent-green)]/30'
+            : 'bg-[var(--accent-red)]/10 text-[var(--accent-red)] border border-[var(--accent-red)]/30'
         }`}>
           {message.text}
         </div>
       )}
 
       {/* Quick select */}
-      <div className="bg-[#1a1d29] rounded-xl border border-[#2d3148] p-4">
-        <h3 className="text-sm font-medium text-[#8b8fa3] mb-3">Quick Select</h3>
-        <div className="grid grid-cols-4 gap-2">
+      <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-4">
+        <h3 className="text-sm font-medium text-[var(--text-muted)] mb-3">Quick Select</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {POPULAR_CRYPTOS.map(crypto => (
             <button
               key={crypto.symbol}
               onClick={() => setSymbol(crypto.symbol)}
               className={`px-3 py-2 rounded-lg text-sm transition-all ${
                 symbol === crypto.symbol
-                  ? 'bg-[#448aff]/20 text-[#448aff] border border-[#448aff]/50'
+                  ? 'bg-[var(--accent-blue)]/20 text-[var(--accent-blue)] border border-[var(--accent-blue)]/50'
                   : positionSymbols.has(crypto.symbol)
-                  ? 'bg-[#1a1d29] text-[#e4e7f1] border border-[#00c853]/30 hover:border-[#448aff]/50'
-                  : 'bg-[#252836] text-[#e4e7f1] border border-[#2d3148] hover:border-[#448aff]/50'
+                  ? 'bg-[var(--bg-card)] text-[var(--text-primary)] border border-[var(--accent-green)]/30 hover:border-[var(--accent-blue)]/50'
+                  : 'bg-[var(--bg-secondary)] text-[var(--text-primary)] border border-[var(--border)] hover:border-[var(--accent-blue)]/50'
               }`}
             >
               <span className="block text-lg">{crypto.icon}</span>
@@ -74,27 +81,27 @@ export default function TradePanel({ onTrade, positions }) {
       </div>
 
       {/* Trade Form */}
-      <form onSubmit={handleSubmit} className="bg-[#1a1d29] rounded-xl border border-[#2d3148] p-4 space-y-4">
+      <form onSubmit={handleSubmit} className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-4 space-y-4">
         {/* Symbol */}
         <div>
-          <label className="block text-sm text-[#8b8fa3] mb-1">Symbol</label>
+          <label className="block text-sm text-[var(--text-muted)] mb-1">Symbol</label>
           <input
             type="text"
             value={symbol}
             onChange={e => setSymbol(e.target.value)}
-            className="w-full bg-[#0f1117] border border-[#2d3148] rounded-lg px-3 py-2 text-white text-sm focus:border-[#448aff] focus:outline-none"
+            className="w-full bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg px-3 py-2 text-[var(--text-primary)] text-sm focus:border-[var(--accent-blue)] focus:outline-none"
             placeholder="e.g., BTC/USD"
           />
         </div>
 
         {/* Quantity */}
         <div>
-          <label className="block text-sm text-[#8b8fa3] mb-1">Quantity</label>
+          <label className="block text-sm text-[var(--text-muted)] mb-1">Quantity</label>
           <input
             type="text"
             value={qty}
             onChange={e => setQty(e.target.value)}
-            className="w-full bg-[#0f1117] border border-[#2d3148] rounded-lg px-3 py-2 text-white text-sm focus:border-[#448aff] focus:outline-none"
+            className="w-full bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg px-3 py-2 text-[var(--text-primary)] text-sm focus:border-[var(--accent-blue)] focus:outline-none"
             placeholder="0.001"
           />
           {symbol === 'BTC/USD' && (
@@ -104,7 +111,7 @@ export default function TradePanel({ onTrade, positions }) {
                   key={amt}
                   type="button"
                   onClick={() => setQty(amt)}
-                  className="px-2 py-0.5 text-xs bg-[#252836] text-[#8b8fa3] rounded hover:text-white transition-colors"
+                  className="px-2 py-0.5 text-xs bg-[var(--bg-secondary)] text-[var(--text-muted)] rounded hover:text-[var(--text-primary)] transition-colors"
                 >
                   {amt}
                 </button>
@@ -115,15 +122,15 @@ export default function TradePanel({ onTrade, positions }) {
 
         {/* Side */}
         <div>
-          <label className="block text-sm text-[#8b8fa3] mb-1">Side</label>
+          <label className="block text-sm text-[var(--text-muted)] mb-1">Side</label>
           <div className="flex gap-2">
             <button
               type="button"
               onClick={() => setSide('buy')}
               className={`flex-1 py-2 rounded-lg font-medium transition-colors ${
                 side === 'buy'
-                  ? 'bg-[#00c853]/20 text-[#00c853] border border-[#00c853]/50'
-                  : 'bg-[#252836] text-[#8b8fa3] border border-[#2d3148]'
+                  ? 'bg-[var(--accent-green)]/20 text-[var(--accent-green)] border border-[var(--accent-green)]/50'
+                  : 'bg-[var(--bg-secondary)] text-[var(--text-muted)] border border-[var(--border)]'
               }`}
             >
               ▲ BUY
@@ -133,8 +140,8 @@ export default function TradePanel({ onTrade, positions }) {
               onClick={() => setSide('sell')}
               className={`flex-1 py-2 rounded-lg font-medium transition-colors ${
                 side === 'sell'
-                  ? 'bg-[#ff1744]/20 text-[#ff1744] border border-[#ff1744]/50'
-                  : 'bg-[#252836] text-[#8b8fa3] border border-[#2d3148]'
+                  ? 'bg-[var(--accent-red)]/20 text-[var(--accent-red)] border border-[var(--accent-red)]/50'
+                  : 'bg-[var(--bg-secondary)] text-[var(--text-muted)] border border-[var(--border)]'
               }`}
             >
               ▼ SELL
@@ -144,7 +151,7 @@ export default function TradePanel({ onTrade, positions }) {
 
         {/* Order Type */}
         <div>
-          <label className="block text-sm text-[#8b8fa3] mb-1">Order Type</label>
+          <label className="block text-sm text-[var(--text-muted)] mb-1">Order Type</label>
           <div className="flex gap-2">
             {['market', 'limit'].map(type => (
               <button
@@ -153,8 +160,8 @@ export default function TradePanel({ onTrade, positions }) {
                 onClick={() => setOrderType(type)}
                 className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
                   orderType === type
-                    ? 'bg-[#448aff]/20 text-[#448aff] border border-[#448aff]/50'
-                    : 'bg-[#252836] text-[#8b8fa3] border border-[#2d3148]'
+                    ? 'bg-[var(--accent-blue)]/20 text-[var(--accent-blue)] border border-[var(--accent-blue)]/50'
+                    : 'bg-[var(--bg-secondary)] text-[var(--text-muted)] border border-[var(--border)]'
                 }`}
               >
                 {type.charAt(0).toUpperCase() + type.slice(1)}
@@ -168,8 +175,8 @@ export default function TradePanel({ onTrade, positions }) {
           disabled={submitting}
           className={`w-full py-3 rounded-lg font-semibold transition-colors disabled:opacity-50 ${
             side === 'buy'
-              ? 'bg-[#00c853] text-black hover:bg-[#00c853]/80'
-              : 'bg-[#ff1744] text-white hover:bg-[#ff1744]/80'
+              ? 'bg-[var(--accent-green)] text-white hover:bg-[var(--accent-green)]/80'
+              : 'bg-[var(--accent-red)] text-white hover:bg-[var(--accent-red)]/80'
           }`}
         >
           {submitting ? 'Placing Order...' : `${side === 'buy' ? '📈 BUY' : '📉 SELL'} ${symbol}`}
@@ -178,12 +185,12 @@ export default function TradePanel({ onTrade, positions }) {
 
       {/* Current positions in this symbol */}
       {positionSymbols.has(symbol) && positions && (
-        <div className="bg-[#1a1d29] rounded-xl border border-[#2d3148] p-4">
-          <h3 className="text-sm font-medium text-[#8b8fa3] mb-2">Current Position in {symbol}</h3>
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-4">
+          <h3 className="text-sm font-medium text-[var(--text-muted)] mb-2">Current Position in {symbol}</h3>
           {positions.filter(p => p.symbol === symbol).map((pos, i) => (
             <div key={i} className="flex justify-between items-center py-1">
-              <span className="text-white">{parseFloat(pos.qty).toFixed(6)} {pos.symbol}</span>
-              <span className={`text-sm ${parseFloat(pos.unrealized_pl) >= 0 ? 'text-[#00c853]' : 'text-[#ff1744]'}`}>
+              <span className="text-[var(--text-primary)]">{parseFloat(pos.qty).toFixed(6)} {pos.symbol}</span>
+              <span className={`text-sm ${parseFloat(pos.unrealized_pl) >= 0 ? 'text-[var(--accent-green)]' : 'text-[var(--accent-red)]'}`}>
                 {parseFloat(pos.unrealized_pl) >= 0 ? '+' : ''}${parseFloat(pos.unrealized_pl).toFixed(2)}
               </span>
             </div>

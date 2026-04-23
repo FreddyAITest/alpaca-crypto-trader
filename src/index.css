@@ -1,3 +1,4 @@
+/* Dark theme (default) */
 :root {
   --bg-primary: #0a0e17;
   --bg-secondary: #111827;
@@ -12,7 +13,37 @@
   --accent-red: #ef4444;
   --accent-red-dim: #7f1d1d;
   --accent-blue: #3b82f6;
+  --accent-amber: #f59e0b;
   --accent-yellow: #f59e0b;
+  --accent-purple: #ab47bc;
+  --accent-orange: #ff9100;
+  --accent-green-light: #69f0ae;
+  --accent-red-light: #ff5252;
+  --bg-input: #252836;
+}
+
+/* Light theme */
+[data-theme="light"] {
+  --bg-primary: #f1f5f9;
+  --bg-secondary: #e2e8f0;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f8fafc;
+  --border: #cbd5e1;
+  --text-primary: #1e293b;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+  --accent-green: #059669;
+  --accent-green-dim: #d1fae5;
+  --accent-red: #dc2626;
+  --accent-red-dim: #fee2e2;
+  --accent-blue: #2563eb;
+  --accent-amber: #d97706;
+  --accent-yellow: #d97706;
+  --accent-purple: #9333ea;
+  --accent-orange: #ea580c;
+  --accent-green-light: #34d399;
+  --accent-red-light: #f87171;
+  --bg-input: #e2e8f0;
 }
 
 * {
@@ -26,6 +57,15 @@ body {
   background: var(--bg-primary);
   color: var(--text-primary);
   min-height: 100vh;
+}
+
+/* Hide scrollbar on mobile tab bar */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }
 
 .app {
@@ -243,7 +283,9 @@ body {
   margin-bottom: 12px;
 }
 
-.orders-table {
+/* Tables - mobile-scrollable with sticky first column */
+.orders-table,
+.pnl-daily-table {
   width: 100%;
   background: var(--bg-card);
   border: 1px solid var(--border);
@@ -251,12 +293,14 @@ body {
   overflow: hidden;
 }
 
-.orders-table table {
+.orders-table table,
+.pnl-daily-table table {
   width: 100%;
   border-collapse: collapse;
 }
 
-.orders-table th {
+.orders-table th,
+.pnl-daily-table th {
   background: var(--bg-secondary);
   padding: 12px 16px;
   text-align: left;
@@ -267,13 +311,15 @@ body {
   color: var(--text-muted);
 }
 
-.orders-table td {
+.orders-table td,
+.pnl-daily-table td {
   padding: 12px 16px;
   border-top: 1px solid var(--border);
   font-size: 14px;
 }
 
-.orders-table tbody tr:hover {
+.orders-table tbody tr:hover,
+.pnl-daily-table tbody tr:hover {
   background: var(--bg-card-hover);
 }
 
@@ -457,7 +503,7 @@ body {
   color: white;
 }
 
- pnl-breakdown {
+pnl-breakdown {
   width: 100%;
 }
 
@@ -500,46 +546,12 @@ body {
   color: var(--accent-red);
 }
 
-.pnl-daily-table {
-  width: 100%;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-.pnl-daily-table table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.pnl-daily-table th {
-  background: var(--bg-secondary);
-  padding: 10px 14px;
-  text-align: left;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-muted);
-}
-
-.pnl-daily-table td {
-  padding: 10px 14px;
-  border-top: 1px solid var(--border);
-  font-size: 13px;
-}
-
 .pnl-daily-table td.positive {
   color: var(--accent-green);
 }
 
 .pnl-daily-table td.negative {
   color: var(--accent-red);
-}
-
-.pnl-daily-table tbody tr:hover {
-  background: var(--bg-card-hover);
 }
 
 .footer {
@@ -549,4 +561,89 @@ body {
   font-size: 12px;
   border-top: 1px solid var(--border);
   margin-top: 32px;
+}
+
+/* ==========================
+   Mobile Responsive Styles
+   ========================== */
+
+/* Mobile: Make account cards stack on small screens */
+@media (max-width: 640px) {
+  .account-bar {
+    grid-template-columns: 1fr;
+  }
+
+  .account-stat {
+    padding: 14px;
+  }
+
+  .account-stat .value {
+    font-size: 20px;
+  }
+
+  .positions-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .position-details {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .app {
+    padding: 12px;
+  }
+
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .header-right {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .pnl-summary-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* Mobile: Tables need horizontal scroll */
+@media (max-width: 768px) {
+  .orders-table,
+  .pnl-daily-table,
+  .trade-history {
+    overflow-x: auto;
+  }
+
+  .orders-table table,
+  .pnl-daily-table table,
+  .trade-history table {
+    min-width: 600px;
+  }
+
+  /* Sticky first column for all data tables on mobile */
+  table th:first-child,
+  table td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+  }
+
+  table th:first-child {
+    background: var(--bg-secondary);
+  }
+
+  table td:first-child {
+    background: var(--bg-card);
+  }
+
+  table tbody tr:hover td:first-child {
+    background: var(--bg-card-hover);
+  }
+
+  .pnl-summary-grid {
+    grid-template-columns: 1fr 1fr;
+  }
 }

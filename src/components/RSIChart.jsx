@@ -74,10 +74,10 @@ export default function RSIChart() {
     if (active && payload && payload.length) {
       const val = payload[0].value;
       return (
-        <div className="bg-[#252836] border border-[#2d3148] rounded-lg p-3 shadow-xl">
-          <p className="text-xs text-[#8b8fa3]">{label}</p>
+        <div className="bg-[var(--bg-input)] border border-[var(--border)] rounded-lg p-3 shadow-xl">
+          <p className="text-xs text-[var(--text-muted)]">{label}</p>
           <p className="text-sm font-bold text-white">RSI({period}): {val}</p>
-          <p className={`text-xs ${val > 70 ? 'text-[#ff1744]' : val < 30 ? 'text-[#00c853]' : 'text-[#8b8fa3]'}`}>
+          <p className={`text-xs ${val > 70 ? 'text-[var(--accent-red)]' : val < 30 ? 'text-[var(--accent-green)]' : 'text-[var(--text-muted)]'}`}>
             {val > 70 ? 'Overbought' : val < 30 ? 'Oversold' : 'Neutral'}
           </p>
         </div>
@@ -96,8 +96,8 @@ export default function RSIChart() {
               onClick={() => setSymbol(s.value)}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                 symbol === s.value
-                  ? 'bg-[#448aff] text-white'
-                  : 'bg-[#252836] text-[#8b8fa3] hover:text-white'
+                  ? 'bg-[var(--accent-blue)] text-white'
+                  : 'bg-[var(--bg-input)] text-[var(--text-muted)] hover:text-white'
               }`}
             >
               {s.label}
@@ -111,8 +111,8 @@ export default function RSIChart() {
               onClick={() => setPeriod(p)}
               className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
                 period === p
-                  ? 'bg-[#ab47bc] text-white'
-                  : 'bg-[#252836] text-[#8b8fa3] hover:text-white'
+                  ? 'bg-[var(--accent-purple)] text-white'
+                  : 'bg-[var(--bg-input)] text-[var(--text-muted)] hover:text-white'
               }`}
             >
               {p}
@@ -121,29 +121,29 @@ export default function RSIChart() {
         </div>
       </div>
 
-      <div className="relative bg-[#0f1117] rounded-xl border border-[#2d3148] p-4">
+      <div className="relative bg-[var(--bg-primary)] rounded-xl border border-[var(--border)] p-4">
         {loading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-[#0f1117]/80 z-10 rounded-xl">
-            <div className="animate-pulse text-[#8b8fa3]">Calculating RSI...</div>
+          <div className="absolute inset-0 flex items-center justify-center bg-[var(--bg-primary)]/80 z-10 rounded-xl">
+            <div className="animate-pulse text-[var(--text-muted)]">Calculating RSI...</div>
           </div>
         )}
         {error && !loading && (
           <div className="flex items-center justify-center h-48">
-            <div className="text-[#ff1744] text-sm">{error}</div>
+            <div className="text-[var(--accent-red)] text-sm">{error}</div>
           </div>
         )}
         {!loading && !error && data.length > 0 && (
           <ResponsiveContainer width="100%" height={200}>
             <LineChart data={data} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
-              <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#8b8fa3', fontSize: 10 }} />
-              <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fill: '#8b8fa3', fontSize: 10 }} ticks={[0, 30, 50, 70, 100]} />
+              <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: 'var(--text-muted)', fontSize: 10 }} />
+              <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fill: 'var(--text-muted)', fontSize: 10 }} ticks={[0, 30, 50, 70, 100]} />
               <Tooltip content={<CustomTooltip />} />
-              <ReferenceArea y1={70} y2={100} fill="#ff174422" />
-              <ReferenceArea y1={0} y2={30} fill="#00c85322" />
-              <ReferenceLine y={70} stroke="#ff174466" strokeDasharray="3 3" />
-              <ReferenceLine y={30} stroke="#00c85366" strokeDasharray="3 3" />
-              <ReferenceLine y={50} stroke="#8b8fa322" strokeDasharray="3 3" />
-              <Line type="monotone" dataKey="rsi" stroke="#ab47bc" strokeWidth={1.5} dot={false} />
+              <ReferenceArea y1={70} y2={100} fill="var(--accent-red)" fillOpacity={0.13} />
+              <ReferenceArea y1={0} y2={30} fill="var(--accent-green)" fillOpacity={0.13} />
+              <ReferenceLine y={70} stroke="var(--accent-red)" strokeOpacity={0.4} strokeDasharray="3 3" />
+              <ReferenceLine y={30} stroke="var(--accent-green)" strokeOpacity={0.4} strokeDasharray="3 3" />
+              <ReferenceLine y={50} stroke="var(--text-muted)" strokeOpacity={0.13} strokeDasharray="3 3" />
+              <Line type="monotone" dataKey="rsi" stroke="var(--accent-purple)" strokeWidth={1.5} dot={false} />
             </LineChart>
           </ResponsiveContainer>
         )}

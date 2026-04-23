@@ -88,11 +88,11 @@ export default function MACDChart() {
       const vals = {};
       payload.forEach(p => vals[p.dataKey] = p.value);
       return (
-        <div className="bg-[#252836] border border-[#2d3148] rounded-lg p-3 shadow-xl">
-          <p className="text-xs text-[#8b8fa3]">{label}</p>
-          <p className="text-sm text-[#448aff]">MACD: {vals.macd?.toFixed(4)}</p>
+        <div className="bg-[var(--bg-input)] border border-[var(--border)] rounded-lg p-3 shadow-xl">
+          <p className="text-xs text-[var(--text-muted)]">{label}</p>
+          <p className="text-sm text-[var(--accent-blue)]">MACD: {vals.macd?.toFixed(4)}</p>
           <p className="text-sm text-[#ff9800]">Signal: {vals.signal?.toFixed(4)}</p>
-          <p className={`text-sm ${vals.histogram >= 0 ? 'text-[#00c853]' : 'text-[#ff1744]'}`}>
+          <p className={`text-sm ${vals.histogram >= 0 ? 'text-[var(--accent-green)]' : 'text-[var(--accent-red)]'}`}>
             Hist: {vals.histogram?.toFixed(4)}
           </p>
         </div>
@@ -110,32 +110,32 @@ export default function MACDChart() {
             onClick={() => setSymbol(s.value)}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               symbol === s.value
-                ? 'bg-[#448aff] text-white'
-                : 'bg-[#252836] text-[#8b8fa3] hover:text-white'
+                ? 'bg-[var(--accent-blue)] text-white'
+                : 'bg-[var(--bg-input)] text-[var(--text-muted)] hover:text-white'
             }`}
           >
             {s.label}
           </button>
         ))}
-        <span className="ml-auto text-xs text-[#8b8fa3]">MACD(12,26,9)</span>
+        <span className="ml-auto text-xs text-[var(--text-muted)]">MACD(12,26,9)</span>
       </div>
 
-      <div className="relative bg-[#0f1117] rounded-xl border border-[#2d3148] p-4">
+      <div className="relative bg-[var(--bg-primary)] rounded-xl border border-[var(--border)] p-4">
         {loading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-[#0f1117]/80 z-10 rounded-xl">
-            <div className="animate-pulse text-[#8b8fa3]">Calculating MACD...</div>
+          <div className="absolute inset-0 flex items-center justify-center bg-[var(--bg-primary)]/80 z-10 rounded-xl">
+            <div className="animate-pulse text-[var(--text-muted)]">Calculating MACD...</div>
           </div>
         )}
         {error && !loading && (
           <div className="flex items-center justify-center h-48">
-            <div className="text-[#ff1744] text-sm">{error}</div>
+            <div className="text-[var(--accent-red)] text-sm">{error}</div>
           </div>
         )}
         {!loading && !error && data.length > 0 && (
           <ResponsiveContainer width="100%" height={200}>
             <ComposedChart data={data} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
-              <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#8b8fa3', fontSize: 10 }} />
-              <YAxis axisLine={false} tickLine={false} tick={{ fill: '#8b8fa3', fontSize: 10 }} />
+              <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: 'var(--text-muted)', fontSize: 10 }} />
+              <YAxis axisLine={false} tickLine={false} tick={{ fill: 'var(--text-muted)', fontSize: 10 }} />
               <Tooltip content={<CustomTooltip />} />
               <ReferenceLine y={0} stroke="#8b8fa333" />
               <Bar dataKey="histogram" fill="#00c85388" />

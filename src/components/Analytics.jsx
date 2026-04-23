@@ -3,27 +3,27 @@ import { fetchAnalytics } from '../api';
 
 function MetricCard({ title, value, subtitle, color = 'white', icon }) {
   const colorMap = {
-    green: 'text-[#00c853]',
-    red: 'text-[#ff1744]',
-    yellow: 'text-[#ffab00]',
-    blue: 'text-[#448aff]',
-    white: 'text-white',
+    green: 'text-[var(--accent-green)]',
+    red: 'text-[var(--accent-red)]',
+    yellow: 'text-[var(--accent-amber)]',
+    blue: 'text-[var(--accent-blue)]',
+    white: 'text-[var(--text-primary)]',
   };
   return (
-    <div className="bg-[#1a1d29] rounded-xl border border-[#2d3148] p-4">
+    <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-4">
       <div className="flex items-center gap-2 mb-1">
         {icon && <span className="text-lg">{icon}</span>}
-        <p className="text-xs text-[#8b8fa3]">{title}</p>
+        <p className="text-xs text-[var(--text-muted)]">{title}</p>
       </div>
       <p className={`text-xl font-bold ${colorMap[color] || colorMap.white}`}>{value}</p>
-      {subtitle && <p className="text-xs text-[#8b8fa3] mt-1">{subtitle}</p>}
+      {subtitle && <p className="text-xs text-[var(--text-muted)] mt-1">{subtitle}</p>}
     </div>
   );
 }
 
 function DrawdownChart({ data }) {
   if (!data || data.length === 0) {
-    return <p className="text-[#8b8fa3] text-sm text-center py-4">No drawdown data available</p>;
+    return <p className="text-[var(--text-muted)] text-sm text-center py-4">No drawdown data available</p>;
   }
   const maxDD = Math.max(...data.map(d => d.drawdown));
   const maxEquity = Math.max(...data.map(d => d.peak));
@@ -36,7 +36,7 @@ function DrawdownChart({ data }) {
         {/* Grid lines */}
         {[0, 25, 50, 75, 100].map(pct => {
           const y = (pct / 100) * chartH;
-          return <line key={pct} x1="40" y1={y} x2={data.length * barW + 40} y2={y} stroke="#2d3148" strokeWidth="0.5" />;
+          return <line key={pct} x1="40" y1={y} x2={data.length * barW + 40} y2={y} stroke="var(--border)" strokeWidth="0.5" />;
         })}
         {/* Drawdown area fill */}
         <path
@@ -46,7 +46,7 @@ function DrawdownChart({ data }) {
             return `${i === 0 ? 'M' : 'L'}${x},${y}`;
           }).join(' ')}
           fill="none"
-          stroke="#ff1744"
+          stroke="var(--accent-red)"
           strokeWidth="1.5"
         />
         {/* Equity line (scaled) */}
@@ -57,12 +57,12 @@ function DrawdownChart({ data }) {
             return `${i === 0 ? 'M' : 'L'}${x},${Math.max(0, y)}`;
           }).join(' ')}
           fill="none"
-          stroke="#448aff"
+          stroke="var(--accent-blue)"
           strokeWidth="1"
           opacity="0.5"
         />
       </svg>
-      <div className="flex justify-between text-[10px] text-[#8b8fa3] px-12">
+      <div className="flex justify-between text-[10px] text-[var(--text-muted)] px-12">
         <span>0%</span><span>{(maxDD / 2).toFixed(1)}%</span><span>{maxDD.toFixed(1)}%</span>
       </div>
     </div>
@@ -71,7 +71,7 @@ function DrawdownChart({ data }) {
 
 function PnLHeatmap({ data }) {
   if (!data || data.length === 0) {
-    return <p className="text-[#8b8fa3] text-sm text-center py-4">No P&L data available</p>;
+    return <p className="text-[var(--text-muted)] text-sm text-center py-4">No P&L data available</p>;
   }
 
   const maxAbs = Math.max(...data.map(d => Math.abs(d.pnlPct)), 1);
@@ -86,13 +86,13 @@ function PnLHeatmap({ data }) {
           : `rgba(255, 23, 68, ${0.1 + intensity * 0.4})`;
         return (
           <div key={i} className="flex items-center gap-2 text-xs">
-            <span className="w-24 text-[#8b8fa3] shrink-0">{d.dateRange || d.week || d.month}</span>
+            <span className="w-24 text-[var(--text-muted)] shrink-0">{d.dateRange || d.week || d.month}</span>
             <div className="flex-1 rounded px-2 py-1" style={{ backgroundColor: bgColor }}>
-              <span className={isPositive ? 'text-[#00c853]' : 'text-[#ff1744]'}>
+              <span className={isPositive ? 'text-[var(--accent-green)]' : 'text-[var(--accent-red)]'}>
                 {isPositive ? '+' : ''}{d.pnlPct.toFixed(2)}%
               </span>
             </div>
-            <span className={`w-20 text-right font-mono ${isPositive ? 'text-[#00c853]' : 'text-[#ff1744]'}`}>
+            <span className={`w-20 text-right font-mono ${isPositive ? 'text-[var(--accent-green)]' : 'text-[var(--accent-red)]'}`}>
               {isPositive ? '+' : ''}{d.pnl < 0 ? '-' : ''}${Math.abs(d.pnl).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           </div>
@@ -104,31 +104,31 @@ function PnLHeatmap({ data }) {
 
 function TradeTable({ trades }) {
   if (!trades || trades.length === 0) {
-    return <p className="text-[#8b8fa3] text-sm text-center py-4">No closed trades yet</p>;
+    return <p className="text-[var(--text-muted)] text-sm text-center py-4">No closed trades yet</p>;
   }
 
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
-        <thead className="bg-[#252836]">
+        <thead className="bg-[var(--bg-secondary)]">
           <tr>
-            <th className="px-3 py-2 text-xs font-medium text-[#8b8fa3] text-left">Date</th>
-            <th className="px-3 py-2 text-xs font-medium text-[#8b8fa3] text-left">Symbol</th>
-            <th className="px-3 py-2 text-xs font-medium text-[#8b8fa3] text-right">Entry</th>
-            <th className="px-3 py-2 text-xs font-medium text-[#8b8fa3] text-right">Exit</th>
-            <th className="px-3 py-2 text-xs font-medium text-[#8b8fa3] text-right">Qty</th>
-            <th className="px-3 py-2 text-xs font-medium text-[#8b8fa3] text-right">P&L</th>
+            <th className="px-3 py-2 text-xs font-medium text-[var(--text-muted)] text-left">Date</th>
+            <th className="px-3 py-2 text-xs font-medium text-[var(--text-muted)] text-left">Symbol</th>
+            <th className="px-3 py-2 text-xs font-medium text-[var(--text-muted)] text-right">Entry</th>
+            <th className="px-3 py-2 text-xs font-medium text-[var(--text-muted)] text-right">Exit</th>
+            <th className="px-3 py-2 text-xs font-medium text-[var(--text-muted)] text-right">Qty</th>
+            <th className="px-3 py-2 text-xs font-medium text-[var(--text-muted)] text-right">P&L</th>
           </tr>
         </thead>
         <tbody>
           {trades.slice().reverse().slice(0, 20).map((t, i) => (
-            <tr key={i} className="border-t border-[#2d3148] hover:bg-[#252836]/50">
-              <td className="px-3 py-2 text-[#8b8fa3]">{new Date(t.timestamp).toLocaleDateString()}</td>
-              <td className="px-3 py-2 text-white font-medium">{t.symbol}</td>
-              <td className="px-3 py-2 text-right font-mono text-white">${t.entryPrice?.toFixed(2)}</td>
-              <td className="px-3 py-2 text-right font-mono text-white">${t.exitPrice?.toFixed(2)}</td>
-              <td className="px-3 py-2 text-right font-mono text-white">{t.qty?.toFixed(6)}</td>
-              <td className={`px-3 py-2 text-right font-mono ${t.realizedPnl >= 0 ? 'text-[#00c853]' : 'text-[#ff1744]'}`}>
+            <tr key={i} className="border-t border-[var(--border)] hover:bg-[var(--bg-secondary)]/50">
+              <td className="px-3 py-2 text-[var(--text-muted)]">{new Date(t.timestamp).toLocaleDateString()}</td>
+              <td className="px-3 py-2 text-[var(--text-primary)] font-medium">{t.symbol}</td>
+              <td className="px-3 py-2 text-right font-mono text-[var(--text-primary)]">${t.entryPrice?.toFixed(2)}</td>
+              <td className="px-3 py-2 text-right font-mono text-[var(--text-primary)]">${t.exitPrice?.toFixed(2)}</td>
+              <td className="px-3 py-2 text-right font-mono text-[var(--text-primary)]">{t.qty?.toFixed(6)}</td>
+              <td className={`px-3 py-2 text-right font-mono ${t.realizedPnl >= 0 ? 'text-[var(--accent-green)]' : 'text-[var(--accent-red)]'}`}>
                 {t.realizedPnl >= 0 ? '+' : ''}${Math.abs(t.realizedPnl).toFixed(2)}
               </td>
             </tr>
@@ -165,16 +165,16 @@ export default function Analytics() {
 
   if (loading && !data) {
     return (
-      <div className="bg-[#1a1d29] rounded-xl border border-[#2d3148] p-8 text-center">
+      <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-8 text-center">
         <div className="animate-pulse text-2xl mb-3">📊</div>
-        <p className="text-[#8b8fa3]">Loading analytics...</p>
+        <p className="text-[var(--text-muted)]">Loading analytics...</p>
       </div>
     );
   }
 
   if (error && !data) {
     return (
-      <div className="bg-[#ff1744]/10 border border-[#ff1744]/30 text-[#ff1744] px-4 py-3 rounded-lg">
+      <div className="bg-[var(--accent-red)]/10 border border-[var(--accent-red)]/30 text-[var(--accent-red)] px-4 py-3 rounded-lg">
         ⚠️ Failed to load analytics: {error}
         <button onClick={loadAnalytics} className="ml-3 underline">Retry</button>
       </div>
@@ -249,31 +249,31 @@ export default function Analytics() {
 
       {/* Gross P&L Summary */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-[#00c853]/5 border border-[#00c853]/20 rounded-xl p-4">
-          <p className="text-xs text-[#00c853] mb-1">Gross Wins</p>
-          <p className="text-2xl font-bold text-[#00c853]">+${grossWins.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+        <div className="bg-[var(--accent-green)]/5 border border-[var(--accent-green)]/20 rounded-xl p-4">
+          <p className="text-xs text-[var(--accent-green)] mb-1">Gross Wins</p>
+          <p className="text-2xl font-bold text-[var(--accent-green)]">+${grossWins.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
         </div>
-        <div className="bg-[#ff1744]/5 border border-[#ff1744]/20 rounded-xl p-4">
-          <p className="text-xs text-[#ff1744] mb-1">Gross Losses</p>
-          <p className="text-2xl font-bold text-[#ff1744]">-${grossLosses.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+        <div className="bg-[var(--accent-red)]/5 border border-[var(--accent-red)]/20 rounded-xl p-4">
+          <p className="text-xs text-[var(--accent-red)] mb-1">Gross Losses</p>
+          <p className="text-2xl font-bold text-[var(--accent-red)]">-${grossLosses.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
         </div>
       </div>
 
       {/* Best / Worst Trades */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {bestTrade && (
-          <div className="bg-[#1a1d29] rounded-xl border border-[#00c853]/30 p-4">
-            <p className="text-xs text-[#8b8fa3] mb-2">🏆 Best Trade</p>
+          <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--accent-green)]/30 p-4">
+            <p className="text-xs text-[var(--text-muted)] mb-2">🏆 Best Trade</p>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-white font-bold">{bestTrade.symbol}</p>
-                <p className="text-xs text-[#8b8fa3]">
+                <p className="text-[var(--text-primary)] font-bold">{bestTrade.symbol}</p>
+                <p className="text-xs text-[var(--text-muted)]">
                   {new Date(bestTrade.timestamp).toLocaleDateString()} · {bestTrade.qty?.toFixed(4)} qty
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-lg font-bold text-[#00c853]">+${bestTrade.realizedPnl.toFixed(2)}</p>
-                <p className="text-xs text-[#8b8fa3]">
+                <p className="text-lg font-bold text-[var(--accent-green)]">+${bestTrade.realizedPnl.toFixed(2)}</p>
+                <p className="text-xs text-[var(--text-muted)]">
                   ${bestTrade.entryPrice?.toFixed(2)} → ${bestTrade.exitPrice?.toFixed(2)}
                 </p>
               </div>
@@ -281,18 +281,18 @@ export default function Analytics() {
           </div>
         )}
         {worstTrade && (
-          <div className="bg-[#1a1d29] rounded-xl border border-[#ff1744]/30 p-4">
-            <p className="text-xs text-[#8b8fa3] mb-2">🔻 Worst Trade</p>
+          <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--accent-red)]/30 p-4">
+            <p className="text-xs text-[var(--text-muted)] mb-2">🔻 Worst Trade</p>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-white font-bold">{worstTrade.symbol}</p>
-                <p className="text-xs text-[#8b8fa3]">
+                <p className="text-[var(--text-primary)] font-bold">{worstTrade.symbol}</p>
+                <p className="text-xs text-[var(--text-muted)]">
                   {new Date(worstTrade.timestamp).toLocaleDateString()} · {worstTrade.qty?.toFixed(4)} qty
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-lg font-bold text-[#ff1744]">${worstTrade.realizedPnl.toFixed(2)}</p>
-                <p className="text-xs text-[#8b8fa3]">
+                <p className="text-lg font-bold text-[var(--accent-red)]">${worstTrade.realizedPnl.toFixed(2)}</p>
+                <p className="text-xs text-[var(--text-muted)]">
                   ${worstTrade.entryPrice?.toFixed(2)} → ${worstTrade.exitPrice?.toFixed(2)}
                 </p>
               </div>
@@ -300,7 +300,7 @@ export default function Analytics() {
           </div>
         )}
         {!bestTrade && !worstTrade && (
-          <div className="col-span-2 bg-[#1a1d29] rounded-xl border border-[#2d3148] p-4 text-center text-[#8b8fa3]">
+          <div className="col-span-2 bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-4 text-center text-[var(--text-muted)]">
             No completed trades yet. Start trading to see your best and worst trades.
           </div>
         )}
@@ -320,8 +320,8 @@ export default function Analytics() {
             onClick={() => setActiveView(tab.id)}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
               activeView === tab.id
-                ? 'bg-[#448aff] text-white'
-                : 'bg-[#252836] text-[#8b8fa3] hover:text-white'
+                ? 'bg-[var(--accent-blue)] text-[var(--text-primary)]'
+                : 'bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
             }`}
           >
             {tab.label}
@@ -331,41 +331,41 @@ export default function Analytics() {
 
       {/* Tab Content */}
       {activeView === 'overview' && (
-        <div className="bg-[#1a1d29] rounded-xl border border-[#2d3148] p-4">
-          <h3 className="text-sm font-medium text-white mb-3">Performance Summary</h3>
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-4">
+          <h3 className="text-sm font-medium text-[var(--text-primary)] mb-3">Performance Summary</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
             <div>
-              <p className="text-[#8b8fa3] text-xs">Total Trades</p>
-              <p className="font-bold text-white">{totalTrades}</p>
+              <p className="text-[var(--text-muted)] text-xs">Total Trades</p>
+              <p className="font-bold text-[var(--text-primary)]">{totalTrades}</p>
             </div>
             <div>
-              <p className="text-[#8b8fa3] text-xs">Winning / Losing</p>
-              <p className="font-bold text-white">
-                <span className="text-[#00c853]">{closedTrades.filter(t => t.realizedPnl > 0).length}</span>
+              <p className="text-[var(--text-muted)] text-xs">Winning / Losing</p>
+              <p className="font-bold text-[var(--text-primary)]">
+                <span className="text-[var(--accent-green)]">{closedTrades.filter(t => t.realizedPnl > 0).length}</span>
                 {' / '}
-                <span className="text-[#ff1744]">{closedTrades.filter(t => t.realizedPnl <= 0).length}</span>
+                <span className="text-[var(--accent-red)]">{closedTrades.filter(t => t.realizedPnl <= 0).length}</span>
               </p>
             </div>
             <div>
-              <p className="text-[#8b8fa3] text-xs">Avg Win / Loss Ratio</p>
-              <p className="font-bold text-white">
+              <p className="text-[var(--text-muted)] text-xs">Avg Win / Loss Ratio</p>
+              <p className="font-bold text-[var(--text-primary)]">
                 {avgLoss > 0 ? (avgWin / avgLoss).toFixed(2) : avgWin > 0 ? '∞' : '0'}:1
               </p>
             </div>
             <div>
-              <p className="text-[#8b8fa3] text-xs">Net P&L</p>
-              <p className={`font-bold ${(grossWins - grossLosses) >= 0 ? 'text-[#00c853]' : 'text-[#ff1744]'}`}>
+              <p className="text-[var(--text-muted)] text-xs">Net P&L</p>
+              <p className={`font-bold ${(grossWins - grossLosses) >= 0 ? 'text-[var(--accent-green)]' : 'text-[var(--accent-red)]'}`}>
                 ${(grossWins - grossLosses).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
             </div>
           </div>
           {drawdownData.length > 0 && (
             <div className="mt-4">
-              <p className="text-xs text-[#8b8fa3] mb-2">Max Drawdown Chart (recent)</p>
+              <p className="text-xs text-[var(--text-muted)] mb-2">Max Drawdown Chart (recent)</p>
               <DrawdownChart data={drawdownData.slice(-60)} />
-              <div className="flex items-center gap-4 text-[10px] text-[#8b8fa3] mt-1">
-                <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 bg-[#ff1744]"></span> Drawdown</span>
-                <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 bg-[#448aff] opacity-50"></span> Equity</span>
+              <div className="flex items-center gap-4 text-[10px] text-[var(--text-muted)] mt-1">
+                <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 bg-[var(--accent-red)]"></span> Drawdown</span>
+                <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 bg-[var(--accent-blue)] opacity-50"></span> Equity</span>
               </div>
             </div>
           )}
@@ -373,33 +373,33 @@ export default function Analytics() {
       )}
 
       {activeView === 'drawdown' && (
-        <div className="bg-[#1a1d29] rounded-xl border border-[#2d3148] p-4">
-          <h3 className="text-sm font-medium text-white mb-3">Max Drawdown Chart</h3>
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-4">
+          <h3 className="text-sm font-medium text-[var(--text-primary)] mb-3">Max Drawdown Chart</h3>
           <DrawdownChart data={drawdownData} />
-          <div className="flex items-center gap-4 text-[10px] text-[#8b8fa3] mt-1">
-            <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 bg-[#ff1744]"></span> Drawdown %</span>
-            <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 bg-[#448aff] opacity-50"></span> Equity</span>
+          <div className="flex items-center gap-4 text-[10px] text-[var(--text-muted)] mt-1">
+            <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 bg-[var(--accent-red)]"></span> Drawdown %</span>
+            <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 bg-[var(--accent-blue)] opacity-50"></span> Equity</span>
           </div>
         </div>
       )}
 
       {activeView === 'weekly' && (
-        <div className="bg-[#1a1d29] rounded-xl border border-[#2d3148] p-4">
-          <h3 className="text-sm font-medium text-white mb-3">Weekly P&L Heatmap</h3>
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-4">
+          <h3 className="text-sm font-medium text-[var(--text-primary)] mb-3">Weekly P&L Heatmap</h3>
           <PnLHeatmap data={weeklyPnl} />
         </div>
       )}
 
       {activeView === 'monthly' && (
-        <div className="bg-[#1a1d29] rounded-xl border border-[#2d3148] p-4">
-          <h3 className="text-sm font-medium text-white mb-3">Monthly P&L Heatmap</h3>
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-4">
+          <h3 className="text-sm font-medium text-[var(--text-primary)] mb-3">Monthly P&L Heatmap</h3>
           <PnLHeatmap data={monthlyPnl} />
         </div>
       )}
 
       {activeView === 'trades' && (
-        <div className="bg-[#1a1d29] rounded-xl border border-[#2d3148] p-4">
-          <h3 className="text-sm font-medium text-white mb-3">Closed Trade Log</h3>
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-4">
+          <h3 className="text-sm font-medium text-[var(--text-primary)] mb-3">Closed Trade Log</h3>
           <TradeTable trades={closedTrades} />
         </div>
       )}
@@ -408,7 +408,7 @@ export default function Analytics() {
       <div className="text-center">
         <button
           onClick={loadAnalytics}
-          className="px-4 py-2 bg-[#252836] hover:bg-[#2d3148] rounded-lg text-sm text-[#8b8fa3] transition-colors border border-[#2d3148]"
+          className="px-4 py-2 bg-[var(--bg-secondary)] hover:bg-[var(--border)] rounded-lg text-sm text-[var(--text-muted)] transition-colors border border-[var(--border)]"
         >
           ↻ Refresh Analytics
         </button>

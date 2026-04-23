@@ -133,6 +133,9 @@ export default function AdvancedCharts() {
     };
   }, []);
 
+  // Helper to read CSS variable values for Lightweight Charts API
+  const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
   // Render charts when bars change
   useEffect(() => {
     if (!bars || bars.length === 0) return;
@@ -155,24 +158,24 @@ export default function AdvancedCharts() {
 
     const chartTheme = {
       layout: {
-        background: { type: 'solid', color: '#1a1d29' },
-        textColor: '#8b8fa3',
+        background: { type: 'solid', color: cssVar('--bg-card') },
+        textColor: cssVar('--text-muted'),
       },
       grid: {
-        vertLines: { color: '#2d3148' },
-        horzLines: { color: '#2d3148' },
+        vertLines: { color: cssVar('--border') },
+        horzLines: { color: cssVar('--border') },
       },
       crosshair: {
-        vertLine: { color: '#448aff44', labelBackgroundColor: '#448aff' },
-        horzLine: { color: '#448aff44', labelBackgroundColor: '#448aff' },
+        vertLine: { color: cssVar('--accent-blue') + '44', labelBackgroundColor: cssVar('--accent-blue') },
+        horzLine: { color: cssVar('--accent-blue') + '44', labelBackgroundColor: cssVar('--accent-blue') },
       },
       timeScale: {
-        borderColor: '#2d3148',
+        borderColor: cssVar('--border'),
         timeVisible: true,
         secondsVisible: false,
       },
       rightPriceScale: {
-        borderColor: '#2d3148',
+        borderColor: cssVar('--border'),
       },
     };
 
@@ -194,12 +197,12 @@ export default function AdvancedCharts() {
       })).filter(b => b.time && b.open != null);
 
       const candleSeries = candleChart.addCandlestickSeries({
-        upColor: '#00c853',
-        downColor: '#ff1744',
-        borderUpColor: '#00c853',
-        borderDownColor: '#ff1744',
-        wickUpColor: '#00c853',
-        wickDownColor: '#ff1744',
+        upColor: cssVar('--accent-green'),
+        downColor: cssVar('--accent-red'),
+        borderUpColor: cssVar('--accent-green'),
+        borderDownColor: cssVar('--accent-red'),
+        wickUpColor: cssVar('--accent-green'),
+        wickDownColor: cssVar('--accent-red'),
       });
       candleSeries.setData(candleData);
 
@@ -207,7 +210,7 @@ export default function AdvancedCharts() {
       const volumeData = bars.map(b => ({
         time: b.t,
         value: b.v,
-        color: b.c >= b.o ? '#00c85333' : '#ff174433',
+        color: b.c >= b.o ? cssVar('--accent-green') + '33' : cssVar('--accent-red') + '33',
       })).filter(v => v.time);
       const volumeSeries = candleChart.addHistogramSeries({
         priceFormat: { type: 'volume' },
@@ -229,7 +232,7 @@ export default function AdvancedCharts() {
             bbLower.push({ time: t, value: bollinger.lower[i] });
           }
         }
-        const bbStyle = { color: '#7c4dff', lineWidth: 1 };
+        const bbStyle = { color: cssVar('--accent-purple'), lineWidth: 1 };
         candleChart.addLineSeries({ ...bbStyle, lineStyle: 0, title: 'BB Mid' }).setData(bbMid);
         candleChart.addLineSeries({ ...bbStyle, lineStyle: 2, title: 'BB Upper' }).setData(bbUpper);
         candleChart.addLineSeries({ ...bbStyle, lineStyle: 2, title: 'BB Lower' }).setData(bbLower);
@@ -252,7 +255,7 @@ export default function AdvancedCharts() {
           }
         }
         rsiChart.addLineSeries({
-          color: '#448aff',
+          color: cssVar('--accent-blue'),
           lineWidth: 2,
           title: 'RSI(14)',
         }).setData(rsiSeriesData);
@@ -260,7 +263,7 @@ export default function AdvancedCharts() {
         // Reference lines at 70 and 30
         const timePoints = candleData.map(b => b.time);
         rsiChart.addLineSeries({
-          color: '#ff1744',
+          color: cssVar('--accent-red'),
           lineWidth: 1,
           lineStyle: 2,
           lastValueVisible: false,
@@ -268,7 +271,7 @@ export default function AdvancedCharts() {
         }).setData(timePoints.map(t => ({ time: t, value: 70 })));
 
         rsiChart.addLineSeries({
-          color: '#00c853',
+          color: cssVar('--accent-green'),
           lineWidth: 1,
           lineStyle: 2,
           lastValueVisible: false,
@@ -308,19 +311,19 @@ export default function AdvancedCharts() {
             histData.push({
               time: t,
               value: macdResult.histogram[i],
-              color: macdResult.histogram[i] >= 0 ? '#00c853' : '#ff1744',
+              color: macdResult.histogram[i] >= 0 ? cssVar('--accent-green') : cssVar('--accent-red'),
             });
           }
         }
 
         macdChart.addLineSeries({
-          color: '#448aff',
+          color: cssVar('--accent-blue'),
           lineWidth: 2,
           title: 'MACD',
         }).setData(macdLineData);
 
         macdChart.addLineSeries({
-          color: '#ff9100',
+          color: cssVar('--accent-amber'),
           lineWidth: 1,
           title: 'Signal',
         }).setData(signalLineData);
@@ -365,20 +368,20 @@ export default function AdvancedCharts() {
         <select
           value={pair}
           onChange={e => setPair(e.target.value)}
-          className="px-3 py-2 bg-[#252836] border border-[#2d3148] rounded-lg text-sm text-white focus:outline-none focus:border-[#448aff]"
+          className="px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-blue)]"
         >
           {PAIRS.map(p => <option key={p} value={p}>{p}</option>)}
         </select>
 
-        <div className="flex bg-[#252836] rounded-lg border border-[#2d3148] overflow-hidden">
+        <div className="flex bg-[var(--bg-secondary)] rounded-lg border border-[var(--border)] overflow-hidden">
           {TIMEFRAMES.map(tf => (
             <button
               key={tf.value}
               onClick={() => setTimeframe(tf.value)}
               className={`px-3 py-1.5 text-xs font-medium transition-colors ${
                 timeframe === tf.value
-                  ? 'bg-[#448aff] text-white'
-                  : 'text-[#8b8fa3] hover:text-white'
+                  ? 'bg-[var(--accent-blue)] text-[var(--text-primary)]'
+                  : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
               }`}
             >
               {tf.label}
@@ -388,8 +391,8 @@ export default function AdvancedCharts() {
 
         <div className="flex gap-1">
           {[
-            { label: 'RSI', state: showRSI, setter: setShowRSI, color: '#448aff' },
-            { label: 'MACD', state: showMACD, setter: setShowMACD, color: '#ff9100' },
+            { label: 'RSI', state: showRSI, setter: setShowRSI, color: cssVar('--accent-blue') },
+            { label: 'MACD', state: showMACD, setter: setShowMACD, color: cssVar('--accent-amber') },
             { label: 'Bollinger', state: showBollinger, setter: setShowBollinger, color: '#7c4dff' },
           ].map(ind => (
             <button
@@ -397,8 +400,8 @@ export default function AdvancedCharts() {
               onClick={() => ind.setter(!ind.state)}
               className={`px-2.5 py-1 text-xs rounded-lg border transition-colors ${
                 ind.state
-                  ? 'text-white'
-                  : 'bg-[#252836] border-[#2d3148] text-[#8b8fa3] hover:text-white'
+                  ? 'text-[var(--text-primary)]'
+                  : 'bg-[var(--bg-secondary)] border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
               }`}
               style={ind.state ? { backgroundColor: ind.color + '22', borderColor: ind.color + '44', color: ind.color } : {}}
             >
@@ -410,7 +413,7 @@ export default function AdvancedCharts() {
         <button
           onClick={loadBars}
           disabled={loading}
-          className="px-3 py-1.5 bg-[#252836] hover:bg-[#2d3148] rounded-lg text-sm transition-colors border border-[#2d3148] text-[#8b8fa3] hover:text-white disabled:opacity-50"
+          className="px-3 py-1.5 bg-[var(--bg-secondary)] hover:bg-[var(--border)] rounded-lg text-sm transition-colors border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-primary)] disabled:opacity-50"
         >
           {loading ? '...' : '↻'}
         </button>
@@ -418,46 +421,46 @@ export default function AdvancedCharts() {
 
       {/* Price Header */}
       {lastBar && (
-        <div className="flex items-center gap-4 bg-[#1a1d29] rounded-xl border border-[#2d3148] p-4">
-          <span className="text-2xl font-bold text-white">
+        <div className="flex items-center gap-4 bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-4">
+          <span className="text-2xl font-bold text-[var(--text-primary)]">
             ${lastBar.c.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: lastBar.c > 100 ? 2 : 6 })}
           </span>
-          <span className={`text-sm font-medium ${priceChange >= 0 ? 'text-[#00c853]' : 'text-[#ff1744]'}`}>
+          <span className={`text-sm font-medium ${priceChange >= 0 ? 'text-[var(--accent-green)]' : 'text-[var(--accent-red)]'}`}>
             {priceChange >= 0 ? '▲' : '▼'} {Math.abs(priceChange).toFixed(2)}%
           </span>
           {currentRsi !== null && (
             <span className={`text-xs px-2 py-0.5 rounded-full ${
-              currentRsi < 30 ? 'bg-[#448aff]/20 text-[#448aff]' :
-              currentRsi > 70 ? 'bg-[#ff1744]/20 text-[#ff1744]' :
-              'bg-[#8b8fa3]/10 text-[#8b8fa3]'
+              currentRsi < 30 ? 'bg-[var(--accent-blue)]/20 text-[var(--accent-blue)]' :
+              currentRsi > 70 ? 'bg-[var(--accent-red)]/20 text-[var(--accent-red)]' :
+              'bg-[var(--text-muted)]/10 text-[var(--text-muted)]'
             }`}>
               RSI: {currentRsi.toFixed(1)}
             </span>
           )}
-          <span className="text-xs text-[#8b8fa3] ml-auto">
+          <span className="text-xs text-[var(--text-muted)] ml-auto">
             {pair} · {timeframe} · {bars.length} bars
           </span>
         </div>
       )}
 
       {error && (
-        <div className="bg-[#ff1744]/10 border border-[#ff1744]/30 text-[#ff1744] px-4 py-2 rounded-lg text-sm">
+        <div className="bg-[var(--accent-red)]/10 border border-[var(--accent-red)]/30 text-[var(--accent-red)] px-4 py-2 rounded-lg text-sm">
           ⚠️ {error}
         </div>
       )}
 
       {/* Charts */}
       {loading && bars.length === 0 ? (
-        <div className="bg-[#1a1d29] rounded-xl border border-[#2d3148] p-12 text-center">
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-12 text-center">
           <div className="animate-pulse text-3xl mb-3">📊</div>
-          <p className="text-[#8b8fa3]">Loading chart data...</p>
+          <p className="text-[var(--text-muted)]">Loading chart data...</p>
         </div>
       ) : bars.length > 0 ? (
         <div className="space-y-1">
           {/* Candlestick Chart */}
-          <div className="bg-[#1a1d29] rounded-t-xl border border-[#2d3148] overflow-hidden">
-            <div className="px-3 py-1.5 border-b border-[#2d3148]">
-              <span className="text-xs text-[#8b8fa3]">
+          <div className="bg-[var(--bg-card)] rounded-t-xl border border-[var(--border)] overflow-hidden">
+            <div className="px-3 py-1.5 border-b border-[var(--border)]">
+              <span className="text-xs text-[var(--text-muted)]">
                 📈 Candlestick {showBollinger ? '· Bollinger Bands(20,2)' : ''} · Volume
               </span>
             </div>
@@ -466,9 +469,9 @@ export default function AdvancedCharts() {
 
           {/* RSI Chart */}
           {showRSI && (
-            <div className="bg-[#1a1d29] border-x border-[#2d3148] overflow-hidden">
-              <div className="px-3 py-1.5 border-b border-[#2d3148]">
-                <span className="text-xs text-[#448aff]">
+            <div className="bg-[var(--bg-card)] border-x border-[var(--border)] overflow-hidden">
+              <div className="px-3 py-1.5 border-b border-[var(--border)]">
+                <span className="text-xs text-[var(--accent-blue)]">
                   📉 RSI(14) · Oversold &lt;30 · Overbought &gt;70
                 </span>
               </div>
@@ -478,9 +481,9 @@ export default function AdvancedCharts() {
 
           {/* MACD Chart */}
           {showMACD && (
-            <div className="bg-[#1a1d29] rounded-b-xl border border-[#2d3148] overflow-hidden">
-              <div className="px-3 py-1.5 border-b border-[#2d3148]">
-                <span className="text-xs text-[#ff9100]">
+            <div className="bg-[var(--bg-card)] rounded-b-xl border border-[var(--border)] overflow-hidden">
+              <div className="px-3 py-1.5 border-b border-[var(--border)]">
+                <span className="text-xs text-[var(--accent-amber)]">
                   📊 MACD(12,26,9) · Signal · Histogram
                 </span>
               </div>
@@ -490,11 +493,11 @@ export default function AdvancedCharts() {
 
           {/* Bottom border when no MACD */}
           {!showMACD && !showRSI && (
-            <div className="bg-[#1a1d29] rounded-b-xl border border-[#2d3148] border-t-0 h-0" />
+            <div className="bg-[var(--bg-card)] rounded-b-xl border border-[var(--border)] border-t-0 h-0" />
           )}
         </div>
       ) : (
-        <div className="flex items-center justify-center h-48 text-[#8b8fa3]">
+        <div className="flex items-center justify-center h-48 text-[var(--text-muted)]">
           No chart data available for {pair}
         </div>
       )}

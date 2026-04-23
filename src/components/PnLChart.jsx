@@ -63,7 +63,7 @@ export default function PnLChart({ history }) {
 
   if (!processedData) {
     return (
-      <div className="flex items-center justify-center h-48 text-[#8b8fa3]">
+      <div className="flex items-center justify-center h-48 text-[var(--text-muted)]">
         No portfolio history available yet
       </div>
     );
@@ -77,12 +77,12 @@ export default function PnLChart({ history }) {
       const val = d.pnl;
       const pct = d.pnlPct;
       return (
-        <div className="bg-[#252836] border border-[#2d3148] rounded-lg p-3 shadow-xl">
-          <p className="text-xs text-[#8b8fa3]">{label}</p>
-          <p className={`text-sm font-bold ${val >= 0 ? 'text-[#00c853]' : 'text-[#ff1744]'}`}>
+        <div className="bg-[var(--bg-input)] border border-[var(--border)] rounded-lg p-3 shadow-xl">
+          <p className="text-xs text-[var(--text-muted)]">{label}</p>
+          <p className={`text-sm font-bold ${val >= 0 ? 'text-[var(--accent-green)]' : 'text-[var(--accent-red)]'}`}>
             {val >= 0 ? '+' : ''}{val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </p>
-          <p className={`text-xs ${val >= 0 ? 'text-[#00c853]' : 'text-[#ff1744]'}`}>
+          <p className={`text-xs ${val >= 0 ? 'text-[var(--accent-green)]' : 'text-[var(--accent-red)]'}`}>
             {val >= 0 ? '+' : ''}{pct.toFixed(2)}%
           </p>
         </div>
@@ -96,12 +96,12 @@ export default function PnLChart({ history }) {
       const val = payload[0].value;
       const eq = payload[0].payload.equity;
       return (
-        <div className="bg-[#252836] border border-[#2d3148] rounded-lg p-3 shadow-xl">
-          <p className="text-xs text-[#8b8fa3]">{label}</p>
-          <p className={`text-sm font-bold ${val >= 0 ? 'text-[#00c853]' : 'text-[#ff1744]'}`}>
+        <div className="bg-[var(--bg-input)] border border-[var(--border)] rounded-lg p-3 shadow-xl">
+          <p className="text-xs text-[var(--text-muted)]">{label}</p>
+          <p className={`text-sm font-bold ${val >= 0 ? 'text-[var(--accent-green)]' : 'text-[var(--accent-red)]'}`}>
             {val >= 0 ? '+' : ''}{val.toFixed(2)}%
           </p>
-          <p className="text-xs text-[#8b8fa3]">
+          <p className="text-xs text-[var(--text-muted)]">
             Equity: ${eq.toLocaleString('en-US', { minimumFractionDigits: 2 })}
           </p>
         </div>
@@ -132,8 +132,8 @@ export default function PnLChart({ history }) {
             onClick={() => setMode(m.id)}
             className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
               mode === m.id
-                ? 'bg-[#448aff] text-white shadow-lg shadow-[#448aff]/20'
-                : 'bg-[#252836] text-[#8b8fa3] hover:bg-[#2d3148] hover:text-white'
+                ? 'bg-[var(--accent-blue)] text-white shadow-lg shadow-[#448aff]/20'
+                : 'bg-[var(--bg-input)] text-[var(--text-muted)] hover:bg-[var(--border)] hover:text-white'
             }`}
           >
             {m.icon} {m.label}
@@ -143,41 +143,41 @@ export default function PnLChart({ history }) {
 
       {/* Summary Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-        <div className="bg-[#252836] rounded-lg p-3">
-          <div className="text-[10px] text-[#8b8fa3] uppercase tracking-wide">Total P&L</div>
-          <div className={`text-sm font-bold ${totalPnL >= 0 ? 'text-[#00c853]' : 'text-[#ff1744]'}`}>
+        <div className="bg-[var(--bg-input)] rounded-lg p-3">
+          <div className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide">Total P&L</div>
+          <div className={`text-sm font-bold ${totalPnL >= 0 ? 'text-[var(--accent-green)]' : 'text-[var(--accent-red)]'}`}>
             {totalPnL >= 0 ? '+' : ''}${totalPnL.toLocaleString('en-US', { minimumFractionDigits: 2 })}
           </div>
         </div>
-        <div className="bg-[#252836] rounded-lg p-3">
-          <div className="text-[10px] text-[#8b8fa3] uppercase tracking-wide">Avg Daily</div>
-          <div className={`text-sm font-bold ${avgDailyPnL >= 0 ? 'text-[#00c853]' : 'text-[#ff1744]'}`}>
+        <div className="bg-[var(--bg-input)] rounded-lg p-3">
+          <div className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide">Avg Daily</div>
+          <div className={`text-sm font-bold ${avgDailyPnL >= 0 ? 'text-[var(--accent-green)]' : 'text-[var(--accent-red)]'}`}>
             {avgDailyPnL >= 0 ? '+' : ''}${avgDailyPnL.toLocaleString('en-US', { minimumFractionDigits: 2 })}
           </div>
         </div>
-        <div className="bg-[#252836] rounded-lg p-3">
-          <div className="text-[10px] text-[#8b8fa3] uppercase tracking-wide">Best Day</div>
-          <div className="text-sm font-bold text-[#00c853]">
+        <div className="bg-[var(--bg-input)] rounded-lg p-3">
+          <div className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide">Best Day</div>
+          <div className="text-sm font-bold text-[var(--accent-green)]">
             +${bestDay.pnl.toLocaleString('en-US', { minimumFractionDigits: 2 })}
           </div>
         </div>
-        <div className="bg-[#252836] rounded-lg p-3">
-          <div className="text-[10px] text-[#8b8fa3] uppercase tracking-wide">Worst Day</div>
-          <div className="text-sm font-bold text-[#ff1744]">
+        <div className="bg-[var(--bg-input)] rounded-lg p-3">
+          <div className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide">Worst Day</div>
+          <div className="text-sm font-bold text-[var(--accent-red)]">
             -${Math.abs(worstDay.pnl).toLocaleString('en-US', { minimumFractionDigits: 2 })}
           </div>
         </div>
-        <div className="bg-[#252836] rounded-lg p-3">
-          <div className="text-[10px] text-[#8b8fa3] uppercase tracking-wide">Green / Red Days</div>
+        <div className="bg-[var(--bg-input)] rounded-lg p-3">
+          <div className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide">Green / Red Days</div>
           <div className="text-sm font-bold">
-            <span className="text-[#00c853]">{greenDays}</span>
-            <span className="text-[#8b8fa3]"> / </span>
-            <span className="text-[#ff1744]">{redDays}</span>
+            <span className="text-[var(--accent-green)]">{greenDays}</span>
+            <span className="text-[var(--text-muted)]"> / </span>
+            <span className="text-[var(--accent-red)]">{redDays}</span>
           </div>
         </div>
-        <div className="bg-[#252836] rounded-lg p-3">
-          <div className="text-[10px] text-[#8b8fa3] uppercase tracking-wide">Cumulative Return</div>
-          <div className={`text-sm font-bold ${cumulative[cumulative.length-1]?.returnPct >= 0 ? 'text-[#00c853]' : 'text-[#ff1744]'}`}>
+        <div className="bg-[var(--bg-input)] rounded-lg p-3">
+          <div className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide">Cumulative Return</div>
+          <div className={`text-sm font-bold ${cumulative[cumulative.length-1]?.returnPct >= 0 ? 'text-[var(--accent-green)]' : 'text-[var(--accent-red)]'}`}>
             {cumulative.length > 0 ? `${cumulative[cumulative.length-1].returnPct >= 0 ? '+' : ''}${cumulative[cumulative.length-1].returnPct.toFixed(2)}%` : '—'}
           </div>
         </div>
@@ -186,7 +186,7 @@ export default function PnLChart({ history }) {
       {/* Chart */}
       {mode === 'daily-pnl' && (
         <div>
-          <h4 className="text-xs text-[#8b8fa3] mb-2">Daily P&L (last 30 days)</h4>
+          <h4 className="text-xs text-[var(--text-muted)] mb-2">Daily P&L (last 30 days)</h4>
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={dailyPnL} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#2d3148" />
@@ -194,12 +194,12 @@ export default function PnLChart({ history }) {
                 dataKey="date"
                 axisLine={false}
                 tickLine={false}
-                tick={{ fill: '#8b8fa3', fontSize: 10 }}
+                tick={{ fill: 'var(--text-muted)', fontSize: 10 }}
               />
               <YAxis
                 axisLine={false}
                 tickLine={false}
-                tick={{ fill: '#8b8fa3', fontSize: 10 }}
+                tick={{ fill: 'var(--text-muted)', fontSize: 10 }}
                 tickFormatter={(v) => `$${v.toFixed(0)}`}
               />
               <Tooltip content={<CustomBarTooltip />} />
@@ -219,7 +219,7 @@ export default function PnLChart({ history }) {
 
       {mode === 'weekly-pnl' && (
         <div>
-          <h4 className="text-xs text-[#8b8fa3] mb-2">Weekly P&L (last 4 weeks)</h4>
+          <h4 className="text-xs text-[var(--text-muted)] mb-2">Weekly P&L (last 4 weeks)</h4>
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={weeklyPnL} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#2d3148" />
@@ -227,12 +227,12 @@ export default function PnLChart({ history }) {
                 dataKey="week"
                 axisLine={false}
                 tickLine={false}
-                tick={{ fill: '#8b8fa3', fontSize: 10 }}
+                tick={{ fill: 'var(--text-muted)', fontSize: 10 }}
               />
               <YAxis
                 axisLine={false}
                 tickLine={false}
-                tick={{ fill: '#8b8fa3', fontSize: 10 }}
+                tick={{ fill: 'var(--text-muted)', fontSize: 10 }}
                 tickFormatter={(v) => `$${v.toFixed(0)}`}
               />
               <Tooltip content={<CustomBarTooltip />} />
@@ -249,27 +249,27 @@ export default function PnLChart({ history }) {
 
           {/* Weekly Summary */}
           <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="bg-[#252836] rounded-lg p-3">
-              <div className="text-[10px] text-[#8b8fa3] uppercase tracking-wide">Total Weekly P&L</div>
-              <div className={`text-sm font-bold ${totalWkPnL >= 0 ? 'text-[#00c853]' : 'text-[#ff1744]'}`}>
+            <div className="bg-[var(--bg-input)] rounded-lg p-3">
+              <div className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide">Total Weekly P&L</div>
+              <div className={`text-sm font-bold ${totalWkPnL >= 0 ? 'text-[var(--accent-green)]' : 'text-[var(--accent-red)]'}`}>
                 {totalWkPnL >= 0 ? '+' : ''}${totalWkPnL.toLocaleString('en-US', { minimumFractionDigits: 2 })}
               </div>
             </div>
-            <div className="bg-[#252836] rounded-lg p-3">
-              <div className="text-[10px] text-[#8b8fa3] uppercase tracking-wide">Best Week</div>
-              <div className="text-sm font-bold text-[#00c853]">
+            <div className="bg-[var(--bg-input)] rounded-lg p-3">
+              <div className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide">Best Week</div>
+              <div className="text-sm font-bold text-[var(--accent-green)]">
                 +${bestWeek.pnl.toLocaleString('en-US', { minimumFractionDigits: 2 })}
               </div>
             </div>
-            <div className="bg-[#252836] rounded-lg p-3">
-              <div className="text-[10px] text-[#8b8fa3] uppercase tracking-wide">Worst Week</div>
-              <div className="text-sm font-bold text-[#ff1744]">
+            <div className="bg-[var(--bg-input)] rounded-lg p-3">
+              <div className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide">Worst Week</div>
+              <div className="text-sm font-bold text-[var(--accent-red)]">
                 -${Math.abs(worstWeek.pnl).toLocaleString('en-US', { minimumFractionDigits: 2 })}
               </div>
             </div>
-            <div className="bg-[#252836] rounded-lg p-3">
-              <div className="text-[10px] text-[#8b8fa3] uppercase tracking-wide">Avg Weekly</div>
-              <div className={`text-sm font-bold ${totalWkPnL/weeklyPnL.length >= 0 ? 'text-[#00c853]' : 'text-[#ff1744]'}`}>
+            <div className="bg-[var(--bg-input)] rounded-lg p-3">
+              <div className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide">Avg Weekly</div>
+              <div className={`text-sm font-bold ${totalWkPnL/weeklyPnL.length >= 0 ? 'text-[var(--accent-green)]' : 'text-[var(--accent-red)]'}`}>
                 {totalWkPnL/weeklyPnL.length >= 0 ? '+' : ''}${(totalWkPnL/weeklyPnL.length).toLocaleString('en-US', { minimumFractionDigits: 2 })}
               </div>
             </div>
@@ -279,7 +279,7 @@ export default function PnLChart({ history }) {
 
       {mode === 'cumulative' && (
         <div>
-          <h4 className="text-xs text-[#8b8fa3] mb-2">Cumulative Returns (%)</h4>
+          <h4 className="text-xs text-[var(--text-muted)] mb-2">Cumulative Returns (%)</h4>
           <ResponsiveContainer width="100%" height={280}>
             <AreaChart data={cumulative} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
               <defs>
@@ -293,12 +293,12 @@ export default function PnLChart({ history }) {
                 dataKey="date"
                 axisLine={false}
                 tickLine={false}
-                tick={{ fill: '#8b8fa3', fontSize: 10 }}
+                tick={{ fill: 'var(--text-muted)', fontSize: 10 }}
               />
               <YAxis
                 axisLine={false}
                 tickLine={false}
-                tick={{ fill: '#8b8fa3', fontSize: 10 }}
+                tick={{ fill: 'var(--text-muted)', fontSize: 10 }}
                 tickFormatter={(v) => `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`}
               />
               <Tooltip content={<CustomCumulativeTooltip />} />
@@ -310,7 +310,7 @@ export default function PnLChart({ history }) {
                 strokeWidth={2}
                 fill="url(#returnGradient)"
                 dot={false}
-                activeDot={{ r: 4, fill: '#448aff', stroke: '#0f1117', strokeWidth: 2 }}
+                activeDot={{ r: 4, fill: 'var(--accent-blue)', stroke: 'var(--bg-primary)', strokeWidth: 2 }}
               />
             </AreaChart>
           </ResponsiveContainer>

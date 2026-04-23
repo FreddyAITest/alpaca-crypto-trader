@@ -190,7 +190,7 @@ export default function PerformanceAnalytics() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12 text-[#8b8fa3]">
+      <div className="flex items-center justify-center py-12 text-[var(--text-muted)]">
         <span className="animate-spin mr-2">⏳</span> Loading analytics...
       </div>
     );
@@ -198,7 +198,7 @@ export default function PerformanceAnalytics() {
 
   if (error) {
     return (
-      <div className="bg-[#ff1744]/10 border border-[#ff1744]/30 text-[#ff1744] px-4 py-3 rounded-lg text-sm">
+      <div className="bg-[var(--accent-red)]/10 border border-[var(--accent-red)]/30 text-[var(--accent-red)] px-4 py-3 rounded-lg text-sm">
         ⚠️ {error}
       </div>
     );
@@ -225,16 +225,16 @@ export default function PerformanceAnalytics() {
       {/* Key Metrics Grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <MetricCard title="Total Trades" value={trades.length} icon="📊" />
-        <MetricCard title="Win Rate" value={`${winRate.toFixed(1)}%`} valueClass={winRate >= 50 ? 'text-[#00c853]' : 'text-[#ff1744]'} icon="🎯" />
-        <MetricCard title="Profit Factor" value={profitFactor === Infinity ? '∞' : profitFactor.toFixed(2)} valueClass={profitFactor >= 1.5 ? 'text-[#00c853]' : profitFactor >= 1 ? 'text-[#ffab00]' : 'text-[#ff1744]'} icon="⚖️" />
-        <MetricCard title="Sharpe Ratio" value={sharpe.toFixed(2)} valueClass={sharpe >= 1 ? 'text-[#00c853]' : sharpe >= 0 ? 'text-[#ffab00]' : 'text-[#ff1744]'} icon="📐" />
-        <MetricCard title="Max Drawdown" value={`-${maxDD.maxDrawdown.toFixed(1)}%`} valueClass="text-[#ff1744]" icon="📉" />
-        <MetricCard title="Net P&L" value={`$${totalPnl.toFixed(2)}`} valueClass={totalPnl >= 0 ? 'text-[#00c853]' : 'text-[#ff1744]'} icon="💰" />
+        <MetricCard title="Win Rate" value={`${winRate.toFixed(1)}%`} valueClass={winRate >= 50 ? 'text-[var(--accent-green)]' : 'text-[var(--accent-red)]'} icon="🎯" />
+        <MetricCard title="Profit Factor" value={profitFactor === Infinity ? '∞' : profitFactor.toFixed(2)} valueClass={profitFactor >= 1.5 ? 'text-[var(--accent-green)]' : profitFactor >= 1 ? 'text-[#ffab00]' : 'text-[var(--accent-red)]'} icon="⚖️" />
+        <MetricCard title="Sharpe Ratio" value={sharpe.toFixed(2)} valueClass={sharpe >= 1 ? 'text-[var(--accent-green)]' : sharpe >= 0 ? 'text-[#ffab00]' : 'text-[var(--accent-red)]'} icon="📐" />
+        <MetricCard title="Max Drawdown" value={`-${maxDD.maxDrawdown.toFixed(1)}%`} valueClass="text-[var(--accent-red)]" icon="📉" />
+        <MetricCard title="Net P&L" value={`$${totalPnl.toFixed(2)}`} valueClass={totalPnl >= 0 ? 'text-[var(--accent-green)]' : 'text-[var(--accent-red)]'} icon="💰" />
       </div>
 
       {/* Equity Curve */}
-      <div className="bg-[#1a1d29] rounded-xl border border-[#2d3148] p-4">
-        <h3 className="text-sm font-medium text-[#8b8fa3] mb-3">Equity Curve (30d)</h3>
+      <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-4">
+        <h3 className="text-sm font-medium text-[var(--text-muted)] mb-3">Equity Curve (30d)</h3>
         {equityCurve.length > 1 ? (
           <div className="relative h-32">
             <svg viewBox={`0 0 ${equityCurve.length} 100`} className="w-full h-full" preserveAspectRatio="none">
@@ -257,15 +257,15 @@ export default function PerformanceAnalytics() {
                 strokeWidth="2"
               />
             </svg>
-            <div className="absolute bottom-1 right-2 text-xs text-[#8b8fa3]">
+            <div className="absolute bottom-1 right-2 text-xs text-[var(--text-muted)]">
               ${maxEquity.toLocaleString('en-US', { maximumFractionDigits: 0 })}
             </div>
-            <div className="absolute top-1 right-2 text-xs text-[#8b8fa3]">
+            <div className="absolute top-1 right-2 text-xs text-[var(--text-muted)]">
               ${minEquity.toLocaleString('en-US', { maximumFractionDigits: 0 })}
             </div>
           </div>
         ) : (
-          <div className="flex items-center justify-center h-32 text-[#8b8fa3] text-sm">
+          <div className="flex items-center justify-center h-32 text-[var(--text-muted)] text-sm">
             No equity history available
           </div>
         )}
@@ -273,83 +273,83 @@ export default function PerformanceAnalytics() {
 
       {/* Win/Loss Breakdown */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-[#1a1d29] rounded-xl border border-[#2d3148] p-4">
-          <h3 className="text-sm font-medium text-[#8b8fa3] mb-3">Win/Loss Breakdown</h3>
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-4">
+          <h3 className="text-sm font-medium text-[var(--text-muted)] mb-3">Win/Loss Breakdown</h3>
           {trades.length > 0 ? (
             <div className="space-y-3">
               <div className="flex justify-between items-center">
-                <span className="text-sm text-[#00c853]">Avg Win</span>
-                <span className="text-sm font-bold text-[#00c853]">+${avgWin.toFixed(2)}</span>
+                <span className="text-sm text-[var(--accent-green)]">Avg Win</span>
+                <span className="text-sm font-bold text-[var(--accent-green)]">+${avgWin.toFixed(2)}</span>
               </div>
-              <div className="w-full bg-[#252836] rounded-full h-2">
-                <div className="bg-[#00c853] h-2 rounded-full" style={{ width: `${avgWin / (avgWin + avgLoss || 1) * 100}%` }} />
+              <div className="w-full bg-[var(--bg-input)] rounded-full h-2">
+                <div className="bg-[var(--accent-green)] h-2 rounded-full" style={{ width: `${avgWin / (avgWin + avgLoss || 1) * 100}%` }} />
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm text-[#ff1744]">Avg Loss</span>
-                <span className="text-sm font-bold text-[#ff1744]">-${avgLoss.toFixed(2)}</span>
+                <span className="text-sm text-[var(--accent-red)]">Avg Loss</span>
+                <span className="text-sm font-bold text-[var(--accent-red)]">-${avgLoss.toFixed(2)}</span>
               </div>
-              <div className="w-full bg-[#252836] rounded-full h-2">
-                <div className="bg-[#ff1744] h-2 rounded-full" style={{ width: `${avgLoss / (avgWin + avgLoss || 1) * 100}%` }} />
+              <div className="w-full bg-[var(--bg-input)] rounded-full h-2">
+                <div className="bg-[var(--accent-red)] h-2 rounded-full" style={{ width: `${avgLoss / (avgWin + avgLoss || 1) * 100}%` }} />
               </div>
-              <div className="pt-2 border-t border-[#2d3148] flex justify-between">
-                <span className="text-sm text-[#8b8fa3]">Win/Loss Ratio</span>
+              <div className="pt-2 border-t border-[var(--border)] flex justify-between">
+                <span className="text-sm text-[var(--text-muted)]">Win/Loss Ratio</span>
                 <span className="text-sm font-bold text-white">{avgLoss > 0 ? (avgWin / avgLoss).toFixed(2) : '∞'}:1</span>
               </div>
             </div>
           ) : (
-            <div className="text-[#8b8fa3] text-sm text-center py-4">No closed trades yet</div>
+            <div className="text-[var(--text-muted)] text-sm text-center py-4">No closed trades yet</div>
           )}
         </div>
 
-        <div className="bg-[#1a1d29] rounded-xl border border-[#2d3148] p-4">
-          <h3 className="text-sm font-medium text-[#8b8fa3] mb-3">Best & Worst Trades</h3>
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-4">
+          <h3 className="text-sm font-medium text-[var(--text-muted)] mb-3">Best & Worst Trades</h3>
           {trades.length > 0 ? (
             <div className="space-y-3">
               {bestTrade && (
-                <div className="flex justify-between items-center p-2 bg-[#00c853]/5 rounded-lg border border-[#00c853]/20">
+                <div className="flex justify-between items-center p-2 bg-[var(--accent-green)]/5 rounded-lg border border-[var(--accent-green)]/20">
                   <div>
-                    <span className="text-xs text-[#00c853]">🏆 Best</span>
+                    <span className="text-xs text-[var(--accent-green)]">🏆 Best</span>
                     <div className="text-sm text-white font-medium">{bestTrade.symbol}</div>
                   </div>
                   <div className="text-right">
-                    <div className="text-sm font-bold text-[#00c853]">+${bestTrade.pnl.toFixed(2)}</div>
-                    <div className="text-xs text-[#00c853]">+{bestTrade.pnlPct.toFixed(1)}%</div>
+                    <div className="text-sm font-bold text-[var(--accent-green)]">+${bestTrade.pnl.toFixed(2)}</div>
+                    <div className="text-xs text-[var(--accent-green)]">+{bestTrade.pnlPct.toFixed(1)}%</div>
                   </div>
                 </div>
               )}
               {worstTrade && (
-                <div className="flex justify-between items-center p-2 bg-[#ff1744]/5 rounded-lg border border-[#ff1744]/20">
+                <div className="flex justify-between items-center p-2 bg-[var(--accent-red)]/5 rounded-lg border border-[var(--accent-red)]/20">
                   <div>
-                    <span className="text-xs text-[#ff1744]">💀 Worst</span>
+                    <span className="text-xs text-[var(--accent-red)]">💀 Worst</span>
                     <div className="text-sm text-white font-medium">{worstTrade.symbol}</div>
                   </div>
                   <div className="text-right">
-                    <div className="text-sm font-bold text-[#ff1744]">${worstTrade.pnl.toFixed(2)}</div>
-                    <div className="text-xs text-[#ff1744]">{worstTrade.pnlPct.toFixed(1)}%</div>
+                    <div className="text-sm font-bold text-[var(--accent-red)]">${worstTrade.pnl.toFixed(2)}</div>
+                    <div className="text-xs text-[var(--accent-red)]">{worstTrade.pnlPct.toFixed(1)}%</div>
                   </div>
                 </div>
               )}
-              <div className="pt-2 border-t border-[#2d3148] text-xs text-[#8b8fa3]">
+              <div className="pt-2 border-t border-[var(--border)] text-xs text-[var(--text-muted)]">
                 Win streak: {calcStreak(trades, 'win')} | Loss streak: {calcStreak(trades, 'loss')}
               </div>
             </div>
           ) : (
-            <div className="text-[#8b8fa3] text-sm text-center py-4">No closed trades yet</div>
+            <div className="text-[var(--text-muted)] text-sm text-center py-4">No closed trades yet</div>
           )}
         </div>
       </div>
 
       {/* P&L by Period Heatmap */}
-      <div className="bg-[#1a1d29] rounded-xl border border-[#2d3148] p-4">
+      <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-4">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-medium text-[#8b8fa3]">P&L by Period</h3>
-          <div className="flex bg-[#252836] rounded-lg border border-[#2d3148] overflow-hidden">
+          <h3 className="text-sm font-medium text-[var(--text-muted)]">P&L by Period</h3>
+          <div className="flex bg-[var(--bg-input)] rounded-lg border border-[var(--border)] overflow-hidden">
             {['daily', 'weekly', 'monthly'].map(p => (
               <button
                 key={p}
                 onClick={() => setPeriodView(p)}
                 className={`px-3 py-1 text-xs font-medium transition-colors capitalize ${
-                  periodView === p ? 'bg-[#448aff] text-white' : 'text-[#8b8fa3] hover:text-white'
+                  periodView === p ? 'bg-[var(--accent-blue)] text-white' : 'text-[var(--text-muted)] hover:text-white'
                 }`}
               >
                 {p}
@@ -361,34 +361,34 @@ export default function PerformanceAnalytics() {
           <div className="space-y-1">
             {pnlByPeriod.slice(-14).map(({ date, pnl }) => (
               <div key={date} className="flex items-center gap-3">
-                <span className="text-xs text-[#8b8fa3] w-24 shrink-0">{date}</span>
-                <div className="flex-1 h-5 bg-[#252836] rounded overflow-hidden relative">
+                <span className="text-xs text-[var(--text-muted)] w-24 shrink-0">{date}</span>
+                <div className="flex-1 h-5 bg-[var(--bg-input)] rounded overflow-hidden relative">
                   <div
-                    className={`h-full rounded transition-all ${pnl >= 0 ? 'bg-[#00c853]/30' : 'bg-[#ff1744]/30'}`}
+                    className={`h-full rounded transition-all ${pnl >= 0 ? 'bg-[var(--accent-green)]/30' : 'bg-[var(--accent-red)]/30'}`}
                     style={{
                       width: `${Math.min(Math.abs(pnl) / (Math.max(...pnlByPeriod.map(p => Math.abs(p.pnl))) || 1) * 100, 100)}%`,
                     }}
                   />
                 </div>
-                <span className={`text-xs font-mono w-20 text-right ${pnl >= 0 ? 'text-[#00c853]' : 'text-[#ff1744]'}`}>
+                <span className={`text-xs font-mono w-20 text-right ${pnl >= 0 ? 'text-[var(--accent-green)]' : 'text-[var(--accent-red)]'}`}>
                   {pnl >= 0 ? '+' : ''}{pnl.toFixed(2)}
                 </span>
               </div>
             ))}
           </div>
         ) : (
-          <div className="text-[#8b8fa3] text-sm text-center py-4">No trade data for this period</div>
+          <div className="text-[var(--text-muted)] text-sm text-center py-4">No trade data for this period</div>
         )}
       </div>
 
       {/* Trade Log */}
       {trades.length > 0 && (
-        <div className="bg-[#1a1d29] rounded-xl border border-[#2d3148] p-4">
-          <h3 className="text-sm font-medium text-[#8b8fa3] mb-3">Trade History ({trades.length} trades)</h3>
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-4">
+          <h3 className="text-sm font-medium text-[var(--text-muted)] mb-3">Trade History ({trades.length} trades)</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-[#8b8fa3] border-b border-[#2d3148]">
+                <tr className="text-[var(--text-muted)] border-b border-[var(--border)]">
                   <th className="text-left py-2 px-2">Symbol</th>
                   <th className="text-right py-2 px-2">Entry</th>
                   <th className="text-right py-2 px-2">Exit</th>
@@ -400,18 +400,18 @@ export default function PerformanceAnalytics() {
               </thead>
               <tbody>
                 {trades.slice(-20).reverse().map((t, i) => (
-                  <tr key={i} className="border-b border-[#2d3148]/50 hover:bg-[#252836]">
+                  <tr key={i} className="border-b border-[var(--border)]/50 hover:bg-[var(--bg-input)]">
                     <td className="py-2 px-2 text-white font-medium">{t.symbol}</td>
-                    <td className="py-2 px-2 text-right text-[#8b8fa3]">${t.entryPrice.toFixed(2)}</td>
-                    <td className="py-2 px-2 text-right text-[#8b8fa3]">${t.exitPrice.toFixed(2)}</td>
-                    <td className="py-2 px-2 text-right text-[#8b8fa3]">{t.qty.toFixed(6)}</td>
-                    <td className={`py-2 px-2 text-right font-medium ${t.pnl >= 0 ? 'text-[#00c853]' : 'text-[#ff1744]'}`}>
+                    <td className="py-2 px-2 text-right text-[var(--text-muted)]">${t.entryPrice.toFixed(2)}</td>
+                    <td className="py-2 px-2 text-right text-[var(--text-muted)]">${t.exitPrice.toFixed(2)}</td>
+                    <td className="py-2 px-2 text-right text-[var(--text-muted)]">{t.qty.toFixed(6)}</td>
+                    <td className={`py-2 px-2 text-right font-medium ${t.pnl >= 0 ? 'text-[var(--accent-green)]' : 'text-[var(--accent-red)]'}`}>
                       {t.pnl >= 0 ? '+' : ''}{t.pnl.toFixed(2)}
                     </td>
-                    <td className={`py-2 px-2 text-right ${t.pnlPct >= 0 ? 'text-[#00c853]' : 'text-[#ff1744]'}`}>
+                    <td className={`py-2 px-2 text-right ${t.pnlPct >= 0 ? 'text-[var(--accent-green)]' : 'text-[var(--accent-red)]'}`}>
                       {t.pnlPct >= 0 ? '+' : ''}{t.pnlPct.toFixed(1)}%
                     </td>
-                    <td className="py-2 px-2 text-right text-[#8b8fa3] text-xs">
+                    <td className="py-2 px-2 text-right text-[var(--text-muted)] text-xs">
                       {new Date(t.closeTime).toLocaleDateString()}
                     </td>
                   </tr>
@@ -442,10 +442,10 @@ function calcStreak(trades, type) {
 // Metric card sub-component
 function MetricCard({ title, value, valueClass = 'text-white', icon }) {
   return (
-    <div className="bg-[#1a1d29] rounded-xl border border-[#2d3148] p-3 hover:border-[#448aff]/30 transition-colors">
+    <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-3 hover:border-[#448aff]/30 transition-colors">
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-xs text-[#8b8fa3] mb-1">{title}</p>
+          <p className="text-xs text-[var(--text-muted)] mb-1">{title}</p>
           <p className={`text-xl font-bold ${valueClass}`}>{value}</p>
         </div>
         <span className="text-lg">{icon}</span>

@@ -1,25 +1,25 @@
 import { useState, useEffect, useCallback } from 'react';
 
 const SIGNAL_COLORS = {
-  STRONG_BUY: { bg: 'bg-[#00c853]/20', text: 'text-[#00c853]', border: 'border-[#00c853]/30' },
-  BUY: { bg: 'bg-[#00c853]/10', text: 'text-[#69f0ae]', border: 'border-[#00c853]/20' },
-  NEUTRAL: { bg: 'bg-[#8b8fa3]/10', text: 'text-[#8b8fa3]', border: 'border-[#8b8fa3]/20' },
-  SELL: { bg: 'bg-[#ff1744]/10', text: 'text-[#ff5252]', border: 'border-[#ff1744]/20' },
-  STRONG_SELL: { bg: 'bg-[#ff1744]/20', text: 'text-[#ff1744]', border: 'border-[#ff1744]/30' },
-  ERROR: { bg: 'bg-[#ff9100]/10', text: 'text-[#ff9100]', border: 'border-[#ff9100]/20' },
-  NO_DATA: { bg: 'bg-[#8b8fa3]/10', text: 'text-[#8b8fa3]', border: 'border-[#8b8fa3]/20' },
+  STRONG_BUY: { bg: 'bg-[var(--accent-green)]/20', text: 'text-[var(--accent-green)]', border: 'border-[var(--accent-green)]/30' },
+  BUY: { bg: 'bg-[var(--accent-green)]/10', text: 'text-[var(--accent-green)]', border: 'border-[var(--accent-green)]/20' },
+  NEUTRAL: { bg: 'bg-[var(--text-muted)]/10', text: 'text-[var(--text-muted)]', border: 'border-[var(--text-muted)]/20' },
+  SELL: { bg: 'bg-[var(--accent-red)]/10', text: 'text-[var(--accent-red)]', border: 'border-[var(--accent-red)]/20' },
+  STRONG_SELL: { bg: 'bg-[var(--accent-red)]/20', text: 'text-[var(--accent-red)]', border: 'border-[var(--accent-red)]/30' },
+  ERROR: { bg: 'bg-[var(--accent-amber)]/10', text: 'text-[var(--accent-amber)]', border: 'border-[var(--accent-amber)]/20' },
+  NO_DATA: { bg: 'bg-[var(--text-muted)]/10', text: 'text-[var(--text-muted)]', border: 'border-[var(--text-muted)]/20' },
 };
 
 function ScoreBar({ score, signal }) {
-  const color = signal === 'STRONG_BUY' || signal === 'BUY' ? '#00c853'
-    : signal === 'STRONG_SELL' || signal === 'SELL' ? '#ff1744'
-    : '#8b8fa3';
+  const color = signal === 'STRONG_BUY' || signal === 'BUY' ? 'var(--accent-green)'
+    : signal === 'STRONG_SELL' || signal === 'SELL' ? 'var(--accent-red)'
+    : 'var(--text-muted)';
   return (
     <div className="flex items-center gap-2">
-      <div className="w-20 h-2 bg-[#252836] rounded-full overflow-hidden">
+      <div className="w-20 h-2 bg-[var(--bg-secondary)] rounded-full overflow-hidden">
         <div className="h-full rounded-full transition-all" style={{ width: `${score}%`, backgroundColor: color }} />
       </div>
-      <span className="text-xs text-[#8b8fa3] w-8">{score}</span>
+      <span className="text-xs text-[var(--text-muted)] w-8">{score}</span>
     </div>
   );
 }
@@ -81,7 +81,7 @@ export default function CryptoScanner() {
 
   const SortHeader = ({ field, label, align = 'left' }) => (
     <th
-      className={`px-3 py-2 text-xs font-medium text-[#8b8fa3] cursor-pointer hover:text-white select-none ${align === 'right' ? 'text-right' : ''}`}
+      className={`px-3 py-2 text-xs font-medium text-[var(--text-muted)] cursor-pointer hover:text-[var(--text-primary)] select-none ${align === 'right' ? 'text-right' : ''}`}
       onClick={() => handleSort(field)}
     >
       {label} {sortField === field ? (sortDir === 'desc' ? '↓' : '↑') : ''}
@@ -90,10 +90,10 @@ export default function CryptoScanner() {
 
   if (loading && results.length === 0) {
     return (
-      <div className="bg-[#1a1d29] rounded-xl border border-[#2d3148] p-8 text-center">
+      <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-8 text-center">
         <div className="animate-pulse text-2xl mb-3">🔍</div>
-        <p className="text-[#8b8fa3]">Scanning crypto pairs...</p>
-        <p className="text-xs text-[#8b8fa3] mt-1">Analyzing RSI, MACD, volume, and volatility across 15 pairs</p>
+        <p className="text-[var(--text-muted)]">Scanning crypto pairs...</p>
+        <p className="text-xs text-[var(--text-muted)] mt-1">Analyzing RSI, MACD, volume, and volatility across 15 pairs</p>
       </div>
     );
   }
@@ -105,7 +105,7 @@ export default function CryptoScanner() {
         <button
           onClick={runScan}
           disabled={loading}
-          className="px-4 py-2 bg-[#448aff] text-white rounded-lg text-sm font-medium hover:bg-[#448aff]/80 transition-colors disabled:opacity-50"
+          className="px-4 py-2 bg-[var(--accent-blue)] text-[var(--text-primary)] rounded-lg text-sm font-medium hover:bg-[var(--accent-blue)]/80 transition-colors disabled:opacity-50"
         >
           {loading ? '🔄 Scanning...' : '🔍 Run Scan'}
         </button>
@@ -113,7 +113,7 @@ export default function CryptoScanner() {
         <select
           value={timeframe}
           onChange={(e) => setTimeframe(e.target.value)}
-          className="px-3 py-2 bg-[#252836] border border-[#2d3148] rounded-lg text-sm text-white"
+          className="px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg text-sm text-[var(--text-primary)]"
         >
           <option value="15Min">15 Min</option>
           <option value="1H">1 Hour</option>
@@ -124,7 +124,7 @@ export default function CryptoScanner() {
         <select
           value={filterSignal}
           onChange={(e) => setFilterSignal(e.target.value)}
-          className="px-3 py-2 bg-[#252836] border border-[#2d3148] rounded-lg text-sm text-white"
+          className="px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg text-sm text-[var(--text-primary)]"
         >
           <option value="all">All Signals</option>
           <option value="STRONG_BUY">🔥 Strong Buy</option>
@@ -135,7 +135,7 @@ export default function CryptoScanner() {
         </select>
 
         {lastScan && (
-          <span className="text-xs text-[#8b8fa3] ml-auto">
+          <span className="text-xs text-[var(--text-muted)] ml-auto">
             Last scan: {new Date(lastScan).toLocaleTimeString()}
           </span>
         )}
@@ -144,36 +144,36 @@ export default function CryptoScanner() {
       {/* Summary */}
       {results.length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="bg-[#1a1d29] rounded-xl border border-[#2d3148] p-3 text-center">
-            <p className="text-xs text-[#8b8fa3]">Pairs Scanned</p>
-            <p className="text-lg font-bold text-white">{results.length}</p>
+          <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-3 text-center">
+            <p className="text-xs text-[var(--text-muted)]">Pairs Scanned</p>
+            <p className="text-lg font-bold text-[var(--text-primary)]">{results.length}</p>
           </div>
-          <div className="bg-[#00c853]/5 rounded-xl border border-[#00c853]/20 p-3 text-center">
-            <p className="text-xs text-[#00c853]">Buy Signals</p>
-            <p className="text-lg font-bold text-[#00c853]">{buyCount}</p>
+          <div className="bg-[var(--accent-green)]/5 rounded-xl border border-[var(--accent-green)]/20 p-3 text-center">
+            <p className="text-xs text-[var(--accent-green)]">Buy Signals</p>
+            <p className="text-lg font-bold text-[var(--accent-green)]">{buyCount}</p>
           </div>
-          <div className="bg-[#ff1744]/5 rounded-xl border border-[#ff1744]/20 p-3 text-center">
-            <p className="text-xs text-[#ff1744]">Sell Signals</p>
-            <p className="text-lg font-bold text-[#ff1744]">{sellCount}</p>
+          <div className="bg-[var(--accent-red)]/5 rounded-xl border border-[var(--accent-red)]/20 p-3 text-center">
+            <p className="text-xs text-[var(--accent-red)]">Sell Signals</p>
+            <p className="text-lg font-bold text-[var(--accent-red)]">{sellCount}</p>
           </div>
-          <div className="bg-[#1a1d29] rounded-xl border border-[#2d3148] p-3 text-center">
-            <p className="text-xs text-[#8b8fa3]">In Target Range</p>
-            <p className="text-lg font-bold text-white">{results.filter(r => r.dailyTarget === 'YES').length}</p>
+          <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-3 text-center">
+            <p className="text-xs text-[var(--text-muted)]">In Target Range</p>
+            <p className="text-lg font-bold text-[var(--text-primary)]">{results.filter(r => r.dailyTarget === 'YES').length}</p>
           </div>
         </div>
       )}
 
       {error && (
-        <div className="bg-[#ff1744]/10 border border-[#ff1744]/30 text-[#ff1744] px-4 py-2 rounded-lg text-sm">
+        <div className="bg-[var(--accent-red)]/10 border border-[var(--accent-red)]/30 text-[var(--accent-red)] px-4 py-2 rounded-lg text-sm">
           ⚠️ {error}
         </div>
       )}
 
       {/* Results Table */}
-      <div className="bg-[#1a1d29] rounded-xl border border-[#2d3148] overflow-hidden">
+      <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-[#252836]">
+            <thead className="bg-[var(--bg-secondary)]">
               <tr>
                 <SortHeader field="pair" label="Pair" />
                 <SortHeader field="signal" label="Signal" />
@@ -184,7 +184,7 @@ export default function CryptoScanner() {
                 <SortHeader field="volumeRatio" label="Vol Ratio" align="right" />
                 <SortHeader field="volatility" label="Vol %" align="right" />
                 <SortHeader field="score" label="Score" />
-                <th className="px-3 py-2 text-xs font-medium text-[#8b8fa3]">2-8% Target</th>
+                <th className="px-3 py-2 text-xs font-medium text-[var(--text-muted)]">2-8% Target</th>
               </tr>
             </thead>
             <tbody>
@@ -193,27 +193,27 @@ export default function CryptoScanner() {
                 const change24h = parseFloat(r.change24h || 0);
                 const rsiVal = parseFloat(r.rsi || 0);
                 return (
-                  <tr key={r.pair || i} className="border-t border-[#2d3148] hover:bg-[#252836]/50 transition-colors">
-                    <td className="px-3 py-2 font-medium text-white">{r.pair?.replace('/USD', '/$')}</td>
+                  <tr key={r.pair || i} className="border-t border-[var(--border)] hover:bg-[var(--bg-secondary)]/50 transition-colors">
+                    <td className="px-3 py-2 font-medium text-[var(--text-primary)]">{r.pair?.replace('/USD', '/$')}</td>
                     <td className="px-3 py-2"><SignalBadge signal={r.signal} /></td>
-                    <td className="px-3 py-2 text-right text-white font-mono">${typeof r.price === 'number' ? r.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: r.price > 100 ? 2 : 6 }) : '—'}</td>
-                    <td className={`px-3 py-2 text-right font-mono ${change1h >= 0 ? 'text-[#00c853]' : 'text-[#ff1744]'}`}>
+                    <td className="px-3 py-2 text-right text-[var(--text-primary)] font-mono">${typeof r.price === 'number' ? r.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: r.price > 100 ? 2 : 6 }) : '—'}</td>
+                    <td className={`px-3 py-2 text-right font-mono ${change1h >= 0 ? 'text-[var(--accent-green)]' : 'text-[var(--accent-red)]'}`}>
                       {change1h >= 0 ? '+' : ''}{r.change1h || '—'}%
                     </td>
-                    <td className={`px-3 py-2 text-right font-mono ${change24h >= 0 ? 'text-[#00c853]' : 'text-[#ff1744]'}`}>
+                    <td className={`px-3 py-2 text-right font-mono ${change24h >= 0 ? 'text-[var(--accent-green)]' : 'text-[var(--accent-red)]'}`}>
                       {change24h >= 0 ? '+' : ''}{r.change24h || '—'}%
                     </td>
                     <td className={`px-3 py-2 text-right font-mono ${
-                      rsiVal < 30 ? 'text-[#448aff]' : rsiVal > 70 ? 'text-[#ff1744]' : 'text-white'
+                      rsiVal < 30 ? 'text-[var(--accent-blue)]' : rsiVal > 70 ? 'text-[var(--accent-red)]' : 'text-[var(--text-primary)]'
                     }`}>
                       {r.rsi || '—'}
                     </td>
-                    <td className="px-3 py-2 text-right font-mono text-white">{r.volumeRatio || '—'}x</td>
-                    <td className="px-3 py-2 text-right font-mono text-white">{r.volatility || '—'}%</td>
+                    <td className="px-3 py-2 text-right font-mono text-[var(--text-primary)]">{r.volumeRatio || '—'}x</td>
+                    <td className="px-3 py-2 text-right font-mono text-[var(--text-primary)]">{r.volatility || '—'}%</td>
                     <td className="px-3 py-2"><ScoreBar score={r.score || 0} signal={r.signal} /></td>
                     <td className="px-3 py-2 text-center">
                       <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
-                        r.dailyTarget === 'YES' ? 'bg-[#00c853]/10 text-[#00c853]' : 'bg-[#ff1744]/10 text-[#ff1744]'
+                        r.dailyTarget === 'YES' ? 'bg-[var(--accent-green)]/10 text-[var(--accent-green)]' : 'bg-[var(--accent-red)]/10 text-[var(--accent-red)]'
                       }`}>
                         {r.dailyTarget === 'YES' ? '✓ YES' : '✗ NO'}
                       </span>
@@ -223,7 +223,7 @@ export default function CryptoScanner() {
               })}
               {filtered.length === 0 && !loading && (
                 <tr>
-                  <td colSpan={10} className="px-3 py-8 text-center text-[#8b8fa3]">
+                  <td colSpan={10} className="px-3 py-8 text-center text-[var(--text-muted)]">
                     No results. Click "Run Scan" to analyze crypto pairs.
                   </td>
                 </tr>
@@ -236,38 +236,38 @@ export default function CryptoScanner() {
       {/* Detail Cards for Buy Signals */}
       {(filtered.filter(r => r.signal === 'BUY' || r.signal === 'STRONG_BUY')).length > 0 && (
         <div className="space-y-3">
-          <h3 className="text-sm font-medium text-[#00c853]">🎯 Top Buy Candidates</h3>
+          <h3 className="text-sm font-medium text-[var(--accent-green)]">🎯 Top Buy Candidates</h3>
           {filtered
             .filter(r => r.signal === 'BUY' || r.signal === 'STRONG_BUY')
             .slice(0, 5)
             .map(r => (
-              <div key={r.pair} className="bg-[#1a1d29] rounded-xl border border-[#00c853]/20 p-4">
+              <div key={r.pair} className="bg-[var(--bg-card)] rounded-xl border border-[var(--accent-green)]/20 p-4">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
                     <SignalBadge signal={r.signal} />
-                    <span className="font-bold text-white">{r.pair}</span>
+                    <span className="font-bold text-[var(--text-primary)]">{r.pair}</span>
                   </div>
-                  <span className="text-lg font-bold text-white">${typeof r.price === 'number' ? r.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: r.price > 100 ? 2 : 6 }) : '—'}</span>
+                  <span className="text-lg font-bold text-[var(--text-primary)]">${typeof r.price === 'number' ? r.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: r.price > 100 ? 2 : 6 }) : '—'}</span>
                 </div>
-                <p className="text-xs text-[#8b8fa3] mb-1">
-                  Signals: <span className="text-white">{r.signals || '—'}</span>
+                <p className="text-xs text-[var(--text-muted)] mb-1">
+                  Signals: <span className="text-[var(--text-primary)]">{r.signals || '—'}</span>
                 </p>
                 <div className="grid grid-cols-4 gap-2 text-xs">
                   <div>
-                    <span className="text-[#8b8fa3]">RSI</span>
-                    <p className={`font-mono ${parseFloat(r.rsi || 0) < 30 ? 'text-[#448aff]' : parseFloat(r.rsi || 0) > 70 ? 'text-[#ff1744]' : 'text-white'}`}>{r.rsi || '—'}</p>
+                    <span className="text-[var(--text-muted)]">RSI</span>
+                    <p className={`font-mono ${parseFloat(r.rsi || 0) < 30 ? 'text-[var(--accent-blue)]' : parseFloat(r.rsi || 0) > 70 ? 'text-[var(--accent-red)]' : 'text-[var(--text-primary)]'}`}>{r.rsi || '—'}</p>
                   </div>
                   <div>
-                    <span className="text-[#8b8fa3]">Vol Ratio</span>
-                    <p className="font-mono text-white">{r.volumeRatio || '—'}x</p>
+                    <span className="text-[var(--text-muted)]">Vol Ratio</span>
+                    <p className="font-mono text-[var(--text-primary)]">{r.volumeRatio || '—'}x</p>
                   </div>
                   <div>
-                    <span className="text-[#8b8fa3]">Volatility</span>
-                    <p className="font-mono text-white">{r.volatility || '—'}%</p>
+                    <span className="text-[var(--text-muted)]">Volatility</span>
+                    <p className="font-mono text-[var(--text-primary)]">{r.volatility || '—'}%</p>
                   </div>
                   <div>
-                    <span className="text-[#8b8fa3]">Score</span>
-                    <p className="font-mono text-[#00c853]">{r.score}/100</p>
+                    <span className="text-[var(--text-muted)]">Score</span>
+                    <p className="font-mono text-[var(--accent-green)]">{r.score}/100</p>
                   </div>
                 </div>
               </div>
