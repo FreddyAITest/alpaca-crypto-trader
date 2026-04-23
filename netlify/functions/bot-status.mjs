@@ -1,9 +1,14 @@
 // Bot Status API - Returns current bot state, risk metrics, and cron health
 // Called by the dashboard to display bot status
 
-import { getAccount, getPositions, getPortfolioHistory } from "./lib/alpaca-client.js";
-import { RiskManager } from "./lib/risk-manager.js";
+<<<<<<< HEAD:netlify/functions/bot-status.js
+import { getAccount, getPositions, getPortfolioHistory } from "./lib/alpaca-client.mjs";
+import { RiskManager } from "./lib/risk-manager.mjs";
 import { getHealth, getAlerts } from "./lib/health-store.js";
+=======
+import { getAccount, getPositions, getPortfolioHistory } from "./lib/alpaca-client.mjs";
+import { RiskManager } from "./lib/risk-manager.mjs";
+>>>>>>> b86a36f (fix: convert Netlify Functions to .mjs to resolve ESM/CJS conflict (ELI-47)):netlify/functions/bot-status.mjs
 
 export default async (req) => {
   try {

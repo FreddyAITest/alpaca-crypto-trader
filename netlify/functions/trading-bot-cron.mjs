@@ -1,19 +1,24 @@
-// Trading Bot v4 - HIGH-VOLUME LEARNING BOT
-// Key v4 improvements:
-// 1. SL/TP orders now wait for buy fill and use actual filled qty
-// 2. SL/TP orders are re-confirmed every cycle (replaceStopsAndTargets)
-// 3. More aggressive position rotation for higher trade velocity
-// 4. Bottom performers rotated out each cycle
-// 5. Higher position sizes (5% from 3%)
-// Runs every 5 minutes, scans 60+ crypto pairs + stocks during market hours
-
-import { getAccount, getPositions, getPortfolioHistory, getCryptoBars, getCryptoSnapshot, getActivities, getStockSnapshot, isMarketOpen, toDataSymbol, toTradeSymbol } from "./lib/alpaca-client.js";
-import { RiskManager } from "./lib/risk-manager.js";
-import { analyzeSymbol, scanSymbols, scanMovers, scanStockMovers, WATCH_LIST, STOCK_UNIVERSE, recordTradeOutcome, getLearningState } from "./lib/strategy.js";
-import { executeBuy, liquidatePosition, executeSignal, executeStockSignal, closeWorstPositions, rotateStalePositions, rotateBottomPerformers, replaceStopsAndTargets, cancelSellOrders } from "./lib/executor.js";
+<<<<<<< HEAD:netlify/functions/trading-bot-cron.js
+// Trading Bot Cron v4 - HIGH-VOLUME LEARNING BOT
+// Scheduled by Netlify every 5 minutes
+// Matches trading-bot.js v4 logic exactly
+import { getAccount, getPositions, getPortfolioHistory, getCryptoBars, getCryptoSnapshot, getActivities, getStockSnapshot, isMarketOpen, toDataSymbol, toTradeSymbol } from "./lib/alpaca-client.mjs";
+import { RiskManager } from "./lib/risk-manager.mjs";
+import { analyzeSymbol, scanSymbols, scanMovers, scanStockMovers, WATCH_LIST, STOCK_UNIVERSE, recordTradeOutcome, getLearningState } from "./lib/strategy.mjs";
+import { executeBuy, liquidatePosition, executeSignal, executeStockSignal, closeWorstPositions, rotateStalePositions, rotateBottomPerformers, replaceStopsAndTargets, cancelSellOrders } from "./lib/executor.mjs";
 import { recordRun } from "./lib/health-store.js";
+=======
+// Trading Bot Cron - Scheduled-only Netlify Function
+// Runs every 5 minutes via Netlify schedule.
+// This file must NOT define a custom path (Netlify forbids path + schedule on same function).
+// It contains the same trading logic as trading-bot.js but is invoked by Netlify's scheduler.
 
-// Bot state stored in memory (resets on cold start)
+import { getAccount, getPositions, getPortfolioHistory, getCryptoBars, getCryptoSnapshot } from "./lib/alpaca-client.mjs";
+import { RiskManager } from "./lib/risk-manager.mjs";
+import { analyzeSymbol, scanSymbols, WATCH_LIST } from "./lib/strategy.mjs";
+import { executeBuy, liquidatePosition, executeSignal } from "./lib/executor.mjs";
+>>>>>>> b86a36f (fix: convert Netlify Functions to .mjs to resolve ESM/CJS conflict (ELI-47)):netlify/functions/trading-bot-cron.mjs
+
 let botState = {
   lastRun: null,
   totalTrades: 0,
@@ -38,9 +43,8 @@ export default async (req) => {
   };
 
   try {
-    log("=== Trading Bot v4 (HIGH-VOLUME LEARNING) Started ===");
+    log("=== Trading Bot v4 Cron (HIGH-VOLUME LEARNING) Started ===");
 
-    // Reset daily trade counter at midnight
     const today = new Date().toISOString().slice(0, 10);
     if (botState.dailyResetDate !== today) {
       botState.dailyTradeCount = 0;
@@ -48,18 +52,16 @@ export default async (req) => {
       log(`Daily trade counter reset for ${today}`);
     }
 
-    // 1. Get account state
     const account = await getAccount();
     const equity = parseFloat(account.equity);
     const cash = parseFloat(account.cash);
     botState.peakEquity = Math.max(botState.peakEquity, equity);
     log(`Account: equity=$${equity.toFixed(2)}, cash=$${cash.toFixed(2)}, status=${account.status}`);
 
-    // 2. Get current positions
     const positions = await getPositions();
-    log(`Open positions: ${positions.length}/${25} slots, total exposure: $${positions.reduce((s, p) => s + parseFloat(p.market_value || 0), 0).toFixed(2)}`);
+    log(`Open positions: ${positions.length}/25, total exposure: $${positions.reduce((s, p) => s + parseFloat(p.market_value || 0), 0).toFixed(2)}`);
 
-    // 3. Learn from recent trade outcomes
+    // Learn from recent trades
     try {
       const activities = await getActivities(new Date(Date.now() - 86400000).toISOString());
       if (Array.isArray(activities)) {
@@ -73,12 +75,11 @@ export default async (req) => {
         log(`Learning: processed ${activities.length} activities, learned from ${learnedCount} sells`);
       }
     } catch (e) {
-      log(`Learning: could not fetch activities - ${e.message}`);
+      log(`Learning: activities failed - ${e.message}`);
     }
 
-    // 4. Risk manager - v4 config: more aggressive for learning velocity
     const riskManager = new RiskManager({
-      maxPositionPct: 0.05,       // 5% per position (up from 3%)
+      maxPositionPct: 0.05,
       dailyLossLimitPct: 0.03,
       maxDrawdownPct: 0.05,
       maxOpenPositions: 25,
@@ -88,39 +89,35 @@ export default async (req) => {
       useAtrStops: true,
     });
 
-    // 5. Check if trading is allowed
     const portfolioHistory = await getPortfolioHistory("1M", "1D");
     const tradingAllowed = await riskManager.checkTradingAllowed(account, positions, portfolioHistory);
     log(`Risk check: ${tradingAllowed.allowed ? "ALLOWED" : "BLOCKED"} - ${tradingAllowed.reason}`);
 
-    // 6. Check stop-loss / take-profit on existing positions
+    // SL/TP threshold closes
     const slTpActions = riskManager.checkStopLossTakeProfit(positions);
     for (const action of slTpActions) {
-      log(`STOP-LOSS/TAKE-PROFIT: ${action.symbol} - ${action.reason}`);
+      log(`SL/TP: ${action.symbol} - ${action.reason}`);
       try {
         const result = await liquidatePosition(action.symbol);
         actions.push({ type: "close", symbol: action.symbol, reason: action.reason, result });
         botState.dailyTradeCount++;
-        log(`  Result: ${result.message}`);
       } catch (e) {
         log(`  Close failed: ${e.message}`);
       }
     }
 
-    // 6b. Close underperformers — more aggressive threshold (1.5% loss)
+    // Close underperformers (>1.5% loss)
     if (positions.length > 10) {
-      log("Closing underperformers (threshold: -1.5%)...");
       const closed = await closeWorstPositions(positions, 0.015);
       for (const c of closed) {
-        actions.push({ type: "close", symbol: c.symbol, reason: `Underperformer: ${(c.pnl * 100).toFixed(1)}%`, result: c.result });
+        actions.push({ type: "close", symbol: c.symbol, reason: `Underperformer`, result: c.result });
         botState.dailyTradeCount++;
       }
       if (closed.length > 0) log(`Closed ${closed.length} underperformers`);
     }
 
-    // 6c. Rotate stale/tiny positions to free up slots
+    // Rotate stale positions
     if (positions.length >= 15) {
-      log("Rotating stale positions...");
       const rotated = await rotateStalePositions(positions, equity);
       for (const r of rotated) {
         actions.push({ type: "rotate", symbol: r.symbol, reason: r.reason, result: r.result });
@@ -129,7 +126,7 @@ export default async (req) => {
       if (rotated.length > 0) log(`Rotated ${rotated.length} stale positions`);
     }
 
-    // 6d. NEW v4: Rotate bottom 2 performers every cycle for learning velocity
+    // v4: Rotate bottom 2 performers every cycle for learning velocity
     if (positions.length >= 8) {
       log("Rotating bottom performers for velocity...");
       const bottomRotated = await rotateBottomPerformers(positions, 2);
@@ -140,8 +137,7 @@ export default async (req) => {
       if (bottomRotated.length > 0) log(`Rotated ${bottomRotated.length} bottom performers`);
     }
 
-    // 6e. NEW v4: Re-place missing SL/TP orders for all open positions
-    // This is critical — ensures every position has stop-loss and take-profit protection
+    // v4: Re-place missing SL/TP orders for all open positions
     try {
       const sltpResults = await replaceStopsAndTargets(positions, 0.03, 0.06);
       for (const r of sltpResults) {
@@ -161,41 +157,31 @@ export default async (req) => {
         currentPositions = await getPositions();
         log(`Positions after closes: ${currentPositions.length}`);
       } catch (e) {
-        log(`Could not refresh positions: ${e.message}`);
         currentPositions = positions;
       }
     }
 
-    // 7. CRYPTO SCANNING - primary trading engine
     let newTrades = [];
     if (tradingAllowed.allowed) {
-      // --- CRYPTO SIGNALS ---
-      log(`[CRYPTO] Scanning ${WATCH_LIST.length} watch list symbols...`);
-      
-      // Build price map from snapshots (batched to avoid API errors from bad symbols)
+      // --- CRYPTO ---
+      log(`[CRYPTO] Scanning ${WATCH_LIST.length} symbols...`);
+
       const priceMap = {};
       let snapshotData;
       try {
-        // Batch snapshot requests into groups of 20 to isolate bad symbols
         const dataSymbols = WATCH_LIST.map(s => toDataSymbol(s));
         let snaps = {};
         for (let i = 0; i < dataSymbols.length; i += 20) {
           const batch = dataSymbols.slice(i, i + 20);
           try {
             const batchResp = await getCryptoSnapshot(batch);
-            if (batchResp?.snapshots) {
-              Object.assign(snaps, batchResp.snapshots);
-            }
+            if (batchResp?.snapshots) Object.assign(snaps, batchResp.snapshots);
           } catch (batchErr) {
-            log(`[CRYPTO] Snapshot batch ${i}-${i + batch.length} failed: ${batchErr.message}`);
-            // Try individual symbols from this batch
             for (const sym of batch) {
               try {
                 const singleResp = await getCryptoSnapshot([sym]);
-                if (singleResp?.snapshots) {
-                  Object.assign(snaps, singleResp.snapshots);
-                }
-              } catch (e) { /* skip bad symbol */ }
+                if (singleResp?.snapshots) Object.assign(snaps, singleResp.snapshots);
+              } catch (e) { /* skip */ }
             }
           }
         }
@@ -208,55 +194,39 @@ export default async (req) => {
               priceMap[key.replace("/", "")] = price;
             }
           }
-          log(`[CRYPTO] Got prices for ${Object.keys(priceMap).length / 2} symbols via snapshots`);
-          
-          // Report top movers
+          log(`[CRYPTO] Got prices for ${Object.keys(priceMap).length / 2} symbols`);
           const movers = scanMovers(snaps);
-          if (movers.length > 0) {
-            log(`[CRYPTO] Top movers: ${movers.length}`);
-            for (const m of movers.slice(0, 15)) {
-              log(`  ${m.symbol}: ${m.direction} ${m.dailyChange.toFixed(1)}% ($${m.price.toFixed(2)})`);
-            }
-          }
+          if (movers.length > 0) log(`[CRYPTO] Top movers: ${movers.length}`);
         }
       } catch (e) {
-        log(`[CRYPTO] Snapshot fetch entirely failed: ${e.message}`);
+        log(`[CRYPTO] Snapshot failed: ${e.message}`);
       }
-      
-      // Fetch bars for each symbol - 1H, 15M, and 5M timeframes
+
       const barsBySymbol = {};
       const bars15MBySymbol = {};
       const bars5MBySymbol = {};
-      const fetchStart = Date.now();
       let fetched = 0;
-      
+
       for (const symbol of WATCH_LIST) {
         try {
           const dataSymbol = toDataSymbol(symbol);
-          
-          // 1-hour bars (primary)
+
           try {
             const barsResp = await getCryptoBars(dataSymbol, "1Hour", 100);
             if (barsResp.bars) {
               const barsKey = Object.keys(barsResp.bars).find(k => k === dataSymbol || k === symbol || k === toTradeSymbol(symbol));
-              if (barsKey && barsResp.bars[barsKey]) {
-                barsBySymbol[symbol] = barsResp.bars[barsKey];
-              }
+              if (barsKey && barsResp.bars[barsKey]) barsBySymbol[symbol] = barsResp.bars[barsKey];
             }
           } catch (e) { /* skip */ }
-          
-          // 15-minute bars (fast timeframe)
+
           try {
             const bars15MResp = await getCryptoBars(dataSymbol, "15Min", 100);
             if (bars15MResp.bars) {
               const barsKey = Object.keys(bars15MResp.bars).find(k => k === dataSymbol || k === symbol || k === toTradeSymbol(symbol));
-              if (barsKey && bars15MResp.bars[barsKey]) {
-                bars15MBySymbol[symbol] = bars15MResp.bars[barsKey];
-              }
+              if (barsKey && bars15MResp.bars[barsKey]) bars15MBySymbol[symbol] = bars15MResp.bars[barsKey];
             }
           } catch (e) { /* optional */ }
-          
-          // 5-minute bars (scalp timeframe) - only for top movers to save API calls
+
           if (snapshotData?.snapshots) {
             const symData = snapshotData.snapshots[toDataSymbol(symbol)];
             if (symData) {
@@ -267,24 +237,21 @@ export default async (req) => {
                   const bars5MResp = await getCryptoBars(dataSymbol, "5Min", 100);
                   if (bars5MResp.bars) {
                     const barsKey = Object.keys(bars5MResp.bars).find(k => k === dataSymbol || k === symbol || k === toTradeSymbol(symbol));
-                    if (barsKey && bars5MResp.bars[barsKey]) {
-                      bars5MBySymbol[symbol] = bars5MResp.bars[barsKey];
-                    }
+                    if (barsKey && bars5MResp.bars[barsKey]) bars5MBySymbol[symbol] = bars5MResp.bars[barsKey];
                   }
                 } catch (e) { /* optional */ }
               }
             }
           }
-          
+
           fetched++;
         } catch (e) {
-          log(`  [CRYPTO] Failed bars for ${symbol}: ${e.message}`);
+          log(`  [CRYPTO] Failed ${symbol}: ${e.message}`);
         }
       }
-      log(`[CRYPTO] Bar fetch: ${fetched}/${WATCH_LIST.length} symbols, 1H=${Object.keys(barsBySymbol).length}, 15M=${Object.keys(bars15MBySymbol).length}, 5M=${Object.keys(bars5MBySymbol).length} in ${((Date.now() - fetchStart)/1000).toFixed(1)}s`);
+      log(`[CRYPTO] Bars: ${fetched}/${WATCH_LIST.length} symbols`);
 
-      // Fallback: extract prices from bar data for symbols missing in priceMap
-      let pricesFromBars = 0;
+      // Fallback prices from bars
       for (const symbol of WATCH_LIST) {
         const tradeSym = toTradeSymbol(symbol);
         const dataSym = toDataSymbol(symbol);
@@ -296,33 +263,26 @@ export default async (req) => {
               priceMap[symbol] = closePrice;
               priceMap[dataSym] = closePrice;
               priceMap[tradeSym] = closePrice;
-              pricesFromBars++;
             }
           }
         }
       }
-      if (pricesFromBars > 0) {
-        log(`[CRYPTO] Got ${pricesFromBars} additional prices from bar data`);
-      }
 
-      // Scan for signals using multi-strategy, multi-timeframe analysis
       const signals = scanSymbols(barsBySymbol, bars15MBySymbol, bars5MBySymbol);
       signalsFound = signals.length;
-      log(`[CRYPTO] Signals found: ${signalsFound}`);
-      
-      // Execute signals - go through ALL signals (not just top 3)
+      log(`[CRYPTO] Signals: ${signalsFound}`);
+
       for (const signal of signals) {
-        log(`  [CRYPTO] ${signal.symbol}: ${signal.signal.toUpperCase()} str=${(signal.strength * 100).toFixed(0)}% [${signal.strategy}${signal.confirmed ? " confirmed" : ""}] - ${signal.reasons.slice(0, 3).join(", ")}`);
-        
+        log(`  [CRYPTO] ${signal.symbol}: ${signal.signal.toUpperCase()} str=${(signal.strength * 100).toFixed(0)}% [${signal.strategy}]`);
+
         const tradeSym = toTradeSymbol(signal.symbol);
         const dataSym = toDataSymbol(signal.symbol);
         signal.currentPrice = priceMap[signal.symbol] || priceMap[dataSym] || priceMap[tradeSym] || 0;
-        
+
         if (signal.currentPrice > 0 && currentPositions.length + newTrades.length < 25) {
           signal.symbol = tradeSym;
           const result = await executeSignal(signal, riskManager, equity, currentPositions);
           actions.push({ type: "trade", signal, result });
-          log(`  [CRYPTO] Executed: ${result.message}`);
           if (result.success) {
             newTrades.push(signal);
             botState.totalTrades++;
@@ -331,69 +291,67 @@ export default async (req) => {
         }
       }
 
-      // --- STOCK SIGNALS (during market hours) ---
+      // --- STOCKS ---
       try {
         const marketOpen = await isMarketOpen();
         if (marketOpen) {
-          log(`[STOCKS] Market is open, scanning ${STOCK_UNIVERSE.length} stocks...`);
+          log(`[STOCKS] Market open, scanning ${STOCK_UNIVERSE.length} stocks...`);
           const stockSnaps = await getStockSnapshot(STOCK_UNIVERSE);
           const stockMovers = scanStockMovers(stockSnaps?.snapshots || {});
           stockSignalsFound = stockMovers.length;
-          log(`[STOCKS] Movers found: ${stockSignalsFound}`);
-          
-          // Execute on top stock movers (long direction only)
+          log(`[STOCKS] Movers: ${stockSignalsFound}`);
+
           for (const mover of stockMovers.slice(0, 5)) {
             if (mover.direction === "up" && currentPositions.length + newTrades.length < 25) {
-              log(`  [STOCKS] ${mover.symbol}: UP ${mover.dailyChange.toFixed(1)}% at $${mover.price.toFixed(2)}`);
               try {
                 const result = await executeStockSignal(
                   { symbol: mover.symbol, signal: "buy", price: mover.price, strategy: "stock-momentum" },
                   riskManager, equity, currentPositions
                 );
-                actions.push({ type: "stock-trade", signal: { symbol: mover.symbol, strategy: "stock-momentum" }, result });
+                actions.push({ type: "stock-trade", signal: { symbol: mover.symbol }, result });
                 if (result.success) {
-                  newTrades.push({ symbol: mover.symbol, strategy: "stock-momentum" });
+                  newTrades.push({ symbol: mover.symbol });
                   botState.totalTrades++;
                   botState.dailyTradeCount++;
                 }
-                log(`  [STOCKS] ${result.message}`);
-              } catch (e) {
-                log(`  [STOCKS] Failed ${mover.symbol}: ${e.message}`);
-              }
+              } catch (e) { /* continue */ }
             }
           }
-        } else {
-          log("[STOCKS] Market closed, skipping stock scan");
         }
       } catch (e) {
-        log(`[STOCKS] Stock scan failed: ${e.message}`);
+        log(`[STOCKS] Scan failed: ${e.message}`);
       }
     }
 
-    // 8. Build risk summary and learning state
     const riskSummary = riskManager.getRiskSummary(account, currentPositions);
     const learningInfo = getLearningState();
 
     botState.lastRun = runStart;
     botState.runHistory.push({
-      time: runStart,
-      equity,
-      tradingAllowed: tradingAllowed.allowed,
-      cryptoSignals: signalsFound,
-      stockSignals: stockSignalsFound,
-      tradesExecuted: newTrades.length,
-      slTpCloses: slTpActions.length,
+      time: runStart, equity, tradingAllowed: tradingAllowed.allowed,
+      cryptoSignals: signalsFound, stockSignals: stockSignalsFound,
+      tradesExecuted: newTrades.length, slTpCloses: slTpActions.length,
       dailyTrades: botState.dailyTradeCount,
     });
     botState.runHistory = botState.runHistory.slice(-100);
 
-    const response = {
+    const durationMs = Date.now() - runStartMs;
+    try {
+      const health = await recordRun({ success: true, durationMs });
+      log(`Health: run #${health.totalRuns}, errors: ${health.consecutiveErrors}`);
+    } catch (healthErr) {
+      log(`Health: record failed - ${healthErr.message}`);
+    }
+
+    log(`=== Bot v4 Cron Done: ${botState.dailyTradeCount} daily trades ===`);
+
+    return new Response(JSON.stringify({
       status: "ok",
       version: "4.0-high-volume",
+      source: "cron",
       runAt: runStart,
       risk: riskSummary,
       tradingAllowed: tradingAllowed.allowed,
-      riskReason: tradingAllowed.reason,
       positions: currentPositions.length,
       cryptoSignals: signalsFound,
       stockSignals: stockSignalsFound,
@@ -412,7 +370,6 @@ export default async (req) => {
         totalLosses: learningInfo.totalLosses,
         adaptiveParams: learningInfo.adaptiveParams,
         lastAdaptation: learningInfo.lastAdaptation,
-        recentTrades: learningInfo.tradeHistory.length,
       },
       logs: logs.slice(-40),
       botState: {
@@ -422,31 +379,23 @@ export default async (req) => {
         peakEquity: botState.peakEquity,
         dailyTrades: botState.dailyTradeCount,
       },
-    };
-
-    log(`=== Trading Bot v4 Completed: ${botState.dailyTradeCount} daily trades, ${signalsFound} crypto signals, ${stockSignalsFound} stock signals ===`);
-
-    // Persist health data for monitoring dashboard
-    const runDurationMs = Date.now() - runStartMs;
-    await recordRun({ success: true, durationMs: runDurationMs });
-
-    return new Response(JSON.stringify(response, null, 2), {
+    }, null, 2), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     });
   } catch (err) {
-    log(`FATAL ERROR: ${err.message}`);
-
-    // Persist error health data for monitoring
-    const runDurationMs = Date.now() - runStartMs;
-    await recordRun({ success: false, error: err.message, durationMs: runDurationMs }).catch(() => {});
+    log(`FATAL: ${err.message}`);
+    const errorDurationMs = Date.now() - runStartMs;
+    try {
+      const health = await recordRun({ success: false, error: err.message, durationMs: errorDurationMs });
+      log(`Health: run #${health.totalRuns}, consecutive errors: ${health.consecutiveErrors}`);
+    } catch (healthErr) {
+      log(`Health: error record failed - ${healthErr.message}`);
+    }
 
     return new Response(JSON.stringify({
-      status: "error",
-      version: "4.0-high-volume",
-      error: err.message,
-      stack: err.stack,
-      logs,
+      status: "error", version: "4.0-high-volume", source: "cron",
+      error: err.message, stack: err.stack, logs,
     }), {
       status: 500,
       headers: { "Content-Type": "application/json" },

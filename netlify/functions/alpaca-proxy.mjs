@@ -1,15 +1,29 @@
-const ALPACA_API_KEY = process.env.ALPACA_API_KEY || "PKFJY5TRMF36BGN76LPRGRUKTO";
+// Alpaca API Proxy - Netlify Function v2 (ESM)
+// Proxies requests to Alpaca paper trading API and crypto data API
+// Uses environment variables: ALPACA_API_KEY, ALPACA_SECRET_KEY
+
+const ALPACA_API_KEY = process.env.ALPACA_API_KEY || "";
 const ALPACA_SECRET_KEY = process.env.ALPACA_SECRET_KEY || "";
 const ALPACA_BASE = "https://paper-api.alpaca.markets/v2";
 const ALPACA_DATA_BASE = "https://data.alpaca.markets/v1beta3";
 
-const headers = {
-  "APCA-API-KEY-ID": ALPACA_API_KEY,
-  "APCA-API-SECRET-KEY": ALPACA_SECRET_KEY,
-  "Content-Type": "application/json",
-};
-
 export default async (req) => {
+  // Check credentials are available
+  if (!ALPACA_API_KEY || !ALPACA_SECRET_KEY) {
+    return new Response(JSON.stringify({
+      error: "Alpaca API credentials not configured. Set ALPACA_API_KEY and ALPACA_SECRET_KEY environment variables."
+    }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  const headers = {
+    "APCA-API-KEY-ID": ALPACA_API_KEY,
+    "APCA-API-SECRET-KEY": ALPACA_SECRET_KEY,
+    "Content-Type": "application/json",
+  };
+
   const url = new URL(req.url);
   const path = url.pathname.replace("/api/", "");
 
