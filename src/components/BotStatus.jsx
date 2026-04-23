@@ -20,7 +20,8 @@ export default function BotStatus() {
 
   useEffect(() => {
     fetchStatus();
-    const interval = setInterval(fetchStatus, 30000);
+    // Poll every 15 seconds for near-real-time cron health monitoring
+    const interval = setInterval(fetchStatus, 15000);
     return () => clearInterval(interval);
   }, []);
 

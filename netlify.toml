@@ -43,6 +43,13 @@
   status = 200
   force = true
 
+# Live prices endpoint (lightweight, for ticker polling)
+[[redirects]]
+  from = "/api/live-prices"
+  to = "/.netlify/functions/live-prices"
+  status = 200
+  force = true
+
 # Alpaca proxy (account, positions, orders, activities, data)
 [[redirects]]
   from = "/api/*"

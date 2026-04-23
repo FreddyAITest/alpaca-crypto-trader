@@ -113,6 +113,13 @@ export async function fetchCronHealth() {
   return res.json();
 }
 
+// Live Prices API (lightweight, for frequent polling)
+export async function fetchLivePrices() {
+  const res = await fetch(`${API_BASE}/live-prices`, { headers: HEADERS });
+  if (!res.ok) throw new Error(`Live prices failed: ${res.status}`);
+  return res.json();
+}
+
 // Bot API
 export async function fetchBotStatus() {
   const res = await fetch(`${API_BASE}/trading-bot/status`, { headers: HEADERS });

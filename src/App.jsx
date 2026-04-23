@@ -103,7 +103,8 @@ function App() {
 
   useEffect(() => {
     refresh();
-    const interval = setInterval(refresh, 30000);
+    // Poll every 20 seconds for near-real-time dashboard updates
+    const interval = setInterval(refresh, 20000);
     return () => clearInterval(interval);
   }, [refresh]);
 
