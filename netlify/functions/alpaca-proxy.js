@@ -64,4 +64,4 @@ export default async (req) => {
   }
 };
 
-export const config = { path: "/api/*" };
+# No path config - routed via netlify.toml redirects;

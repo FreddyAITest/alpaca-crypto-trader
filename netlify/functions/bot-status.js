@@ -92,4 +92,4 @@ export default async (req) => {
   }
 };
 
-export const config = { path: "/api/trading-bot/status" };
+// No path config - routed via netlify.toml redirect

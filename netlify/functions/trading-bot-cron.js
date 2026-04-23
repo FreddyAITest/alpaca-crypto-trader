@@ -6,6 +6,7 @@ import { getAccount, getPositions, getPortfolioHistory, getCryptoBars, getCrypto
 import { RiskManager } from "./lib/risk-manager.js";
 import { analyzeSymbol, scanSymbols, scanMovers, scanStockMovers, WATCH_LIST, STOCK_UNIVERSE, recordTradeOutcome, getLearningState } from "./lib/strategy.js";
 import { executeBuy, liquidatePosition, executeSignal, executeStockSignal, closeWorstPositions, rotateStalePositions } from "./lib/executor.js";
+import { recordRun } from "./lib/health-store.js";
 
 let botState = {
   lastRun: null,
@@ -19,6 +20,7 @@ let botState = {
 
 export default async (req) => {
   const runStart = new Date().toISOString();
+  const runStartMs = Date.now();
   const logs = [];
   const actions = [];
   let signalsFound = 0;
@@ -252,6 +254,15 @@ export default async (req) => {
       dailyTrades: botState.dailyTradeCount,
     });
     botState.runHistory = botState.runHistory.slice(-100);
+
+  // Record successful run to persistent health store
+    const durationMs = Date.now() - new Date(runStart).getTime();
+    try {
+      const health = await recordRun({ success: true, durationMs });
+      log(`Health: run #${health.totalRuns}, errors: ${health.consecutiveErrors}`);
+    } catch (healthErr) {
+      log(`Health: record failed - ${healthErr.message}`);
+    }
 
     log(`=== Bot v3 Cron Done: ${botState.dailyTradeCount} daily trades ===`);
 

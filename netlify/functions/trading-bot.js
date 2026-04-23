@@ -130,24 +130,46 @@ export default async (req) => {
       // --- CRYPTO SIGNALS ---
       log(`[CRYPTO] Scanning ${WATCH_LIST.length} watch list symbols...`);
       
-      // Build price map from snapshots
+      // Build price map from snapshots (batched to avoid API errors from bad symbols)
       const priceMap = {};
       let snapshotData;
       try {
+        // Batch snapshot requests into groups of 20 to isolate bad symbols
         const dataSymbols = WATCH_LIST.map(s => toDataSymbol(s));
-        snapshotData = await getCryptoSnapshot(dataSymbols);
-        if (snapshotData?.snapshots) {
-          for (const [key, snap] of Object.entries(snapshotData.snapshots)) {
+        let snaps = {};
+        for (let i = 0; i < dataSymbols.length; i += 20) {
+          const batch = dataSymbols.slice(i, i + 20);
+          try {
+            const batchResp = await getCryptoSnapshot(batch);
+            if (batchResp?.snapshots) {
+              Object.assign(snaps, batchResp.snapshots);
+            }
+          } catch (batchErr) {
+            log(`[CRYPTO] Snapshot batch ${i}-${i + batch.length} failed: ${batchErr.message}`);
+            // Try individual symbols from this batch
+            for (const sym of batch) {
+              try {
+                const singleResp = await getCryptoSnapshot([sym]);
+                if (singleResp?.snapshots) {
+                  Object.assign(snaps, singleResp.snapshots);
+                }
+              } catch (e) { /* skip bad symbol */ }
+            }
+          }
+        }
+        snapshotData = { snapshots: snaps };
+        if (Object.keys(snaps).length > 0) {
+          for (const [key, snap] of Object.entries(snaps)) {
             const price = parseFloat(snap.latestTrade?.p || snap.dailyBar?.c || 0);
             if (price > 0) {
               priceMap[key] = price;
               priceMap[key.replace("/", "")] = price;
             }
           }
-          log(`[CRYPTO] Got prices for ${Object.keys(priceMap).length / 2} symbols`);
+          log(`[CRYPTO] Got prices for ${Object.keys(priceMap).length / 2} symbols via snapshots`);
           
           // Report top movers
-          const movers = scanMovers(snapshotData.snapshots);
+          const movers = scanMovers(snaps);
           if (movers.length > 0) {
             log(`[CRYPTO] Top movers: ${movers.length}`);
             for (const m of movers.slice(0, 15)) {
@@ -156,7 +178,7 @@ export default async (req) => {
           }
         }
       } catch (e) {
-        log(`[CRYPTO] Snapshot fetch failed: ${e.message}`);
+        log(`[CRYPTO] Snapshot fetch entirely failed: ${e.message}`);
       }
       
       // Fetch bars for each symbol - 1H, 15M, and 5M timeframes
@@ -218,6 +240,28 @@ export default async (req) => {
         }
       }
       log(`[CRYPTO] Bar fetch: ${fetched}/${WATCH_LIST.length} symbols, 1H=${Object.keys(barsBySymbol).length}, 15M=${Object.keys(bars15MBySymbol).length}, 5M=${Object.keys(bars5MBySymbol).length} in ${((Date.now() - fetchStart)/1000).toFixed(1)}s`);
+
+      // Fallback: extract prices from bar data for symbols missing in priceMap
+      let pricesFromBars = 0;
+      for (const symbol of WATCH_LIST) {
+        const tradeSym = toTradeSymbol(symbol);
+        const dataSym = toDataSymbol(symbol);
+        if (!priceMap[symbol] && !priceMap[dataSym] && !priceMap[tradeSym]) {
+          const bars = barsBySymbol[symbol];
+          if (bars && bars.length > 0) {
+            const closePrice = parseFloat(bars[bars.length - 1].c);
+            if (closePrice > 0) {
+              priceMap[symbol] = closePrice;
+              priceMap[dataSym] = closePrice;
+              priceMap[tradeSym] = closePrice;
+              pricesFromBars++;
+            }
+          }
+        }
+      }
+      if (pricesFromBars > 0) {
+        log(`[CRYPTO] Got ${pricesFromBars} additional prices from bar data`);
+      }
 
       // Scan for signals using multi-strategy, multi-timeframe analysis
       const signals = scanSymbols(barsBySymbol, bars15MBySymbol, bars5MBySymbol);

@@ -22,11 +22,19 @@
   status = 200
   query = {path = ":path"}
 
-# Bot status endpoint (separate function)
+# Bot status endpoint (dedicated function for status/health data)
 [[redirects]]
   from = "/api/bot-status"
   to = "/.netlify/functions/bot-status"
   status = 200
+  force = true
+
+# Also route /api/trading-bot/status to the bot-status function
+[[redirects]]
+  from = "/api/trading-bot/status"
+  to = "/.netlify/functions/bot-status"
+  status = 200
+  force = true
 
 # Health check endpoint (lightweight, for monitoring)
 [[redirects]]

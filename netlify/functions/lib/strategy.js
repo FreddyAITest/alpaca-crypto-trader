@@ -291,12 +291,12 @@ export const WATCH_LIST = [
   "DOGE/USD", "ADA/USD", "AVAX/USD", "LINK/USD", "XRP/USD",
   "DOT/USD", "UNI/USD", "ATOM/USD", "LTC/USD", "BCH/USD",
   // DeFi blue chips
-  "AAVE/USD", "CRV/USD", "SUSHI/USD", "UNI/USD", "COMP/USD",
-  "MKR/USD", "SNX/USD", "DYDX/USD", "1INCH/USD",
+  "AAVE/USD", "CRV/USD", "SUSHI/USD", "COMP/USD",
+  "MKR/USD", "SNX/USD", "DYDX/USD",
   // L1/L2 chains  
   "MATIC/USD", "NEAR/USD", "ALGO/USD", "ARB/USD", "OP/USD",
   "APT/USD", "SUI/USD", "SEI/USD", "TIA/USD", "JUP/USD",
-  "INJ/USD", "TIA/USD",
+  "INJ/USD",
   // AINarrative / AI tokens
   "FET/USD", "RNDR/USD", "AGIX/USD", "OCEAN/USD", "WLD/USD",
   // Gaming/Metaverse

@@ -205,4 +205,4 @@ export default async (req) => {
 };
 
 // Netlify function config
-export const config = { path: "/api/crypto-scanner" };
+# No path config - routed via netlify.toml redirects;
