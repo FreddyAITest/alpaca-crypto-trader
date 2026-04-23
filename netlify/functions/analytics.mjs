@@ -238,4 +238,4 @@ export default async (req) => {
   }
 };
 
-# No path config - routed via netlify.toml redirects;
+// No path config - routed via netlify.toml redirects;

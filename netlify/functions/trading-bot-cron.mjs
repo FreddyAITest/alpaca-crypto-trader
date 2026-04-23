@@ -1,4 +1,3 @@
-<<<<<<< HEAD:netlify/functions/trading-bot-cron.js
 // Trading Bot Cron v4 - HIGH-VOLUME LEARNING BOT
 // Scheduled by Netlify every 5 minutes
 // Matches trading-bot.js v4 logic exactly
@@ -6,18 +5,7 @@ import { getAccount, getPositions, getPortfolioHistory, getCryptoBars, getCrypto
 import { RiskManager } from "./lib/risk-manager.mjs";
 import { analyzeSymbol, scanSymbols, scanMovers, scanStockMovers, WATCH_LIST, STOCK_UNIVERSE, recordTradeOutcome, getLearningState } from "./lib/strategy.mjs";
 import { executeBuy, liquidatePosition, executeSignal, executeStockSignal, closeWorstPositions, rotateStalePositions, rotateBottomPerformers, replaceStopsAndTargets, cancelSellOrders } from "./lib/executor.mjs";
-import { recordRun } from "./lib/health-store.js";
-=======
-// Trading Bot Cron - Scheduled-only Netlify Function
-// Runs every 5 minutes via Netlify schedule.
-// This file must NOT define a custom path (Netlify forbids path + schedule on same function).
-// It contains the same trading logic as trading-bot.js but is invoked by Netlify's scheduler.
-
-import { getAccount, getPositions, getPortfolioHistory, getCryptoBars, getCryptoSnapshot } from "./lib/alpaca-client.mjs";
-import { RiskManager } from "./lib/risk-manager.mjs";
-import { analyzeSymbol, scanSymbols, WATCH_LIST } from "./lib/strategy.mjs";
-import { executeBuy, liquidatePosition, executeSignal } from "./lib/executor.mjs";
->>>>>>> b86a36f (fix: convert Netlify Functions to .mjs to resolve ESM/CJS conflict (ELI-47)):netlify/functions/trading-bot-cron.mjs
+import { recordRun } from "./lib/health-store.mjs";
 
 let botState = {
   lastRun: null,

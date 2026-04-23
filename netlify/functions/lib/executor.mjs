@@ -5,11 +5,7 @@
 // NOTE: Alpaca crypto does NOT support bracket/OTOCO orders
 // For crypto: simple market BUY + delayed SL/TP after fill confirmation
 
-<<<<<<< HEAD:netlify/functions/lib/executor.js
 import { submitOrder, closePosition, getPositions, getOrders, cancelOrder, getOrder, getAccount } from "./alpaca-client.js";
-=======
-import { submitOrder, closePosition, getPositions, getOrders, cancelOrder } from "./alpaca-client.mjs";
->>>>>>> b86a36f (fix: convert Netlify Functions to .mjs to resolve ESM/CJS conflict (ELI-47)):netlify/functions/lib/executor.mjs
 
 /**
  * Wait for a market order to fill, polling every 2 seconds up to maxWait

@@ -7,18 +7,11 @@
 // 5. Higher position sizes (5% from 3%)
 // Runs every 5 minutes, scans 60+ crypto pairs + stocks during market hours
 
-<<<<<<< HEAD:netlify/functions/trading-bot.js
 import { getAccount, getPositions, getPortfolioHistory, getCryptoBars, getCryptoSnapshot, getActivities, getStockSnapshot, isMarketOpen, toDataSymbol, toTradeSymbol } from "./lib/alpaca-client.mjs";
 import { RiskManager } from "./lib/risk-manager.mjs";
 import { analyzeSymbol, scanSymbols, scanMovers, scanStockMovers, WATCH_LIST, STOCK_UNIVERSE, recordTradeOutcome, getLearningState } from "./lib/strategy.mjs";
 import { executeBuy, liquidatePosition, executeSignal, executeStockSignal, closeWorstPositions, rotateStalePositions, rotateBottomPerformers, replaceStopsAndTargets, cancelSellOrders } from "./lib/executor.mjs";
-import { recordRun } from "./lib/health-store.js";
-=======
-import { getAccount, getPositions, getPortfolioHistory, getCryptoBars, getCryptoSnapshot } from "./lib/alpaca-client.mjs";
-import { RiskManager } from "./lib/risk-manager.mjs";
-import { analyzeSymbol, scanSymbols, WATCH_LIST } from "./lib/strategy.mjs";
-import { executeBuy, liquidatePosition, executeSignal } from "./lib/executor.mjs";
->>>>>>> b86a36f (fix: convert Netlify Functions to .mjs to resolve ESM/CJS conflict (ELI-47)):netlify/functions/trading-bot.mjs
+import { recordRun } from "./lib/health-store.mjs";
 
 // Bot state stored in memory (resets on cold start)
 let botState = {
