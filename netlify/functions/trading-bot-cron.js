@@ -20,7 +20,6 @@ let botState = {
 
 export default async (req) => {
   const runStart = new Date().toISOString();
-  const runStartMs = Date.now();
   const logs = [];
   const actions = [];
   let signalsFound = 0;
@@ -255,7 +254,7 @@ export default async (req) => {
     });
     botState.runHistory = botState.runHistory.slice(-100);
 
-  // Record successful run to persistent health store
+    // Record successful run to persistent health store
     const durationMs = Date.now() - new Date(runStart).getTime();
     try {
       const health = await recordRun({ success: true, durationMs });
@@ -306,6 +305,15 @@ export default async (req) => {
     });
   } catch (err) {
     log(`FATAL: ${err.message}`);
+    // Record failed run to persistent health store so cron monitoring detects errors
+    const errorDurationMs = Date.now() - new Date(runStart).getTime();
+    try {
+      const health = await recordRun({ success: false, error: err.message, durationMs: errorDurationMs });
+      log(`Health: run #${health.totalRuns}, consecutive errors: ${health.consecutiveErrors}`);
+    } catch (healthErr) {
+      log(`Health: error record failed - ${healthErr.message}`);
+    }
+
     return new Response(JSON.stringify({
       status: "error", version: "3.0-high-volume", source: "cron",
       error: err.message, stack: err.stack, logs,

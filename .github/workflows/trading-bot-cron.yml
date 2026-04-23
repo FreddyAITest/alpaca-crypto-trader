@@ -1,0 +1,41 @@
+name: Trading Bot Cron Trigger
+
+on:
+  schedule:
+    # Run every 5 minutes, 24/7 (crypto markets never close)
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+    # Allow manual trigger from GitHub UI
+
+jobs:
+  trigger-bot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger Trading Bot Cron
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            "https://cerulean-dieffenbachia-f63827.netlify.app/.netlify/functions/trading-bot-cron" \
+            -H "Content-Type: application/json" \
+            -H "Accept: application/json" \
+            --max-time 240)
+          
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          
+          echo "HTTP Status: $HTTP_CODE"
+          echo "Response (first 500 chars):"
+          echo "$BODY" | head -c 500
+          
+          if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+            echo "SUCCESS: Bot triggered successfully"
+          else
+            echo "FAILED: Bot returned HTTP $HTTP_CODE"
+            exit 1
+          fi
+
+      - name: Health Check
+        if: always()
+        run: |
+          echo "--- Health Check ---"
+          curl -s "https://cerulean-dieffenbachia-f63827.netlify.app/api/health" | python3 -m json.tool 2>/dev/null || echo "Health check failed"

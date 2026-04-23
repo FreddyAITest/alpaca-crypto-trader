@@ -140,11 +140,19 @@ export default function BotStatus() {
         <div className="grid grid-cols-2 gap-3 text-sm">
           <div className="flex justify-between">
             <span className="text-[var(--text-muted)]">Last Run</span>
-            <span className="text-[var(--text-primary)]">{formatTimeAgo(cron.lastRun)}</span>
+            <span className={`text-[var(--text-primary)]${cron.minutesSinceLastRun > 15 ? ' text-[var(--accent-red)] font-bold' : ''}`}>
+              {formatTimeAgo(cron.lastRun)}
+            </span>
           </div>
           <div className="flex justify-between">
             <span className="text-[var(--text-muted)]">Last Success</span>
             <span className="text-[var(--text-primary)]">{formatTimeAgo(cron.lastSuccess)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-[var(--text-muted)]">Minutes Since Run</span>
+            <span className={`font-bold ${cron.minutesSinceLastRun > 15 ? 'text-[var(--accent-red)]' : cron.minutesSinceLastRun > 10 ? 'text-[var(--accent-amber)]' : 'text-[var(--accent-green)]'}`}>
+              {cron.minutesSinceLastRun != null ? `${cron.minutesSinceLastRun}m` : '-'}
+            </span>
           </div>
           <div className="flex justify-between">
             <span className="text-[var(--text-muted)]">Consecutive Errors</span>

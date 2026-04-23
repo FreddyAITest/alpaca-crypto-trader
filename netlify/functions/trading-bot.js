@@ -10,6 +10,7 @@ import { getAccount, getPositions, getPortfolioHistory, getCryptoBars, getCrypto
 import { RiskManager } from "./lib/risk-manager.js";
 import { analyzeSymbol, scanSymbols, scanMovers, scanStockMovers, WATCH_LIST, STOCK_UNIVERSE, recordTradeOutcome, getLearningState } from "./lib/strategy.js";
 import { executeBuy, liquidatePosition, executeSignal, executeStockSignal, closeWorstPositions, rotateStalePositions } from "./lib/executor.js";
+import { recordRun } from "./lib/health-store.js";
 
 // Bot state stored in memory (resets on cold start)
 let botState = {
@@ -24,6 +25,7 @@ let botState = {
 
 export default async (req) => {
   const runStart = new Date().toISOString();
+  const runStartMs = Date.now();
   const logs = [];
   const actions = [];
   let signalsFound = 0;
@@ -384,12 +386,21 @@ export default async (req) => {
 
     log(`=== Trading Bot v3 Completed: ${botState.dailyTradeCount} daily trades, ${signalsFound} crypto signals, ${stockSignalsFound} stock signals ===`);
 
+    // Persist health data for monitoring dashboard
+    const runDurationMs = Date.now() - runStartMs;
+    await recordRun({ success: true, durationMs: runDurationMs });
+
     return new Response(JSON.stringify(response, null, 2), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     });
   } catch (err) {
     log(`FATAL ERROR: ${err.message}`);
+
+    // Persist error health data for monitoring
+    const runDurationMs = Date.now() - runStartMs;
+    await recordRun({ success: false, error: err.message, durationMs: runDurationMs }).catch(() => {});
+
     return new Response(JSON.stringify({
       status: "error",
       version: "3.0-high-volume",
