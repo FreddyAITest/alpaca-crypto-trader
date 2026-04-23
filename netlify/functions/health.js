@@ -3,6 +3,7 @@
 // Designed for external monitoring services (cron-job.org, UptimeRobot, etc.)
 
 import { getHealth, getAlerts } from "./lib/health-store.js";
+import { getAccount, getPositions } from "./lib/alpaca-client.js";
 
 export default async (req) => {
   try {
@@ -13,6 +14,18 @@ export default async (req) => {
     const minutesSinceRun = health.lastRun
       ? Math.round((Date.now() - new Date(health.lastRun).getTime()) / 60000)
       : null;
+
+    // Fetch lightweight account info for monitoring
+    let positionCount = 0;
+    let equity = null;
+    try {
+      const account = await getAccount();
+      equity = parseFloat(account.equity);
+      const positions = await getPositions();
+      positionCount = positions.length;
+    } catch (e) {
+      // Account fetch is optional for health check
+    }
 
     const response = {
       status: hasCritical ? "unhealthy" : "healthy",
@@ -30,6 +43,10 @@ export default async (req) => {
         isHealthy: !hasCritical,
         schedule: "every 5 minutes",
         recentRuns: health.recentRuns.slice(-5),
+      },
+      account: {
+        equity,
+        positionCount,
       },
       alerts: alerts,
     };
