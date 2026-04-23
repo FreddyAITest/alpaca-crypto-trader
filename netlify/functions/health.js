@@ -56,4 +56,4 @@ export default async (req) => {
   }
 };
 
-export const config = { path: "/api/health" };
+// No path config - routed via netlify.toml redirect to preserve redirect precedence

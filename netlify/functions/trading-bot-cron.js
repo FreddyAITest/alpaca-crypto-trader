@@ -1,28 +1,28 @@
-// Trading Bot Cron v2 - LEARNING BOT
+// Trading Bot Cron v3 - HIGH-VOLUME LEARNING BOT
 // Scheduled by Netlify every 5 minutes
-// Same enhanced logic as trading-bot.js but for cron invocation
+// Same logic as trading-bot.js but for cron invocation
 
-import { getAccount, getPositions, getPortfolioHistory, getCryptoBars, getCryptoSnapshot, getActivities, toDataSymbol, toTradeSymbol } from "./lib/alpaca-client.js";
+import { getAccount, getPositions, getPortfolioHistory, getCryptoBars, getCryptoSnapshot, getActivities, getStockSnapshot, isMarketOpen, toDataSymbol, toTradeSymbol } from "./lib/alpaca-client.js";
 import { RiskManager } from "./lib/risk-manager.js";
-import { analyzeSymbol, scanSymbols, scanMovers, WATCH_LIST, recordTradeOutcome, getLearningState } from "./lib/strategy.js";
-import { executeBuy, liquidatePosition, executeSignal, closeWorstPositions } from "./lib/executor.js";
-import { recordRun } from "./lib/health-store.js";
+import { analyzeSymbol, scanSymbols, scanMovers, scanStockMovers, WATCH_LIST, STOCK_UNIVERSE, recordTradeOutcome, getLearningState } from "./lib/strategy.js";
+import { executeBuy, liquidatePosition, executeSignal, executeStockSignal, closeWorstPositions, rotateStalePositions } from "./lib/executor.js";
 
-// Bot state stored in memory (resets on cold start)
 let botState = {
   lastRun: null,
   totalTrades: 0,
   totalPnl: 0,
   runHistory: [],
   peakEquity: 0,
+  dailyTradeCount: 0,
+  dailyResetDate: null,
 };
 
 export default async (req) => {
   const runStart = new Date().toISOString();
-  const runStartMs = Date.now();
   const logs = [];
   const actions = [];
   let signalsFound = 0;
+  let stockSignalsFound = 0;
 
   const log = (msg) => {
     logs.push(`[${new Date().toISOString()}] ${msg}`);
@@ -30,36 +30,45 @@ export default async (req) => {
   };
 
   try {
-    log("=== Trading Bot v2 Cron (LEARNING) Started ===");
+    log("=== Trading Bot v3 Cron (HIGH-VOLUME LEARNING) Started ===");
+
+    const today = new Date().toISOString().slice(0, 10);
+    if (botState.dailyResetDate !== today) {
+      botState.dailyTradeCount = 0;
+      botState.dailyResetDate = today;
+    }
 
     const account = await getAccount();
     const equity = parseFloat(account.equity);
+    const cash = parseFloat(account.cash);
     botState.peakEquity = Math.max(botState.peakEquity, equity);
-    log(`Account: equity=$${equity.toFixed(2)}, cash=$${parseFloat(account.cash).toFixed(2)}, status=${account.status}`);
+    log(`Account: equity=$${equity.toFixed(2)}, cash=$${cash.toFixed(2)}, status=${account.status}`);
 
     const positions = await getPositions();
-    log(`Open positions: ${positions.length}`);
+    log(`Open positions: ${positions.length}/25`);
 
-    // Learn from recent trade outcomes
+    // Learn from recent trades
     try {
       const activities = await getActivities(new Date(Date.now() - 86400000).toISOString());
       if (Array.isArray(activities)) {
-        for (const act of activities.slice(0, 50)) {
+        let learnedCount = 0;
+        for (const act of activities.slice(0, 100)) {
           if (act.side === "sell" && parseFloat(act.net_amount || 0) !== 0) {
             recordTradeOutcome(act.symbol || "unknown", "sell_close", parseFloat(act.net_amount || 0));
+            learnedCount++;
           }
         }
-        log(`Learning: processed ${activities.length} recent activities`);
+        log(`Learning: processed ${activities.length} activities, ${learnedCount} sells`);
       }
     } catch (e) {
-      log(`Learning: could not fetch activities - ${e.message}`);
+      log(`Learning: activities failed - ${e.message}`);
     }
 
     const riskManager = new RiskManager({
-      maxPositionPct: 0.05,
+      maxPositionPct: 0.03,
       dailyLossLimitPct: 0.03,
       maxDrawdownPct: 0.05,
-      maxOpenPositions: 15,
+      maxOpenPositions: 25,
       minTradeSizeUsd: 500,
       defaultStopLossPct: 0.03,
       defaultTakeProfitPct: 0.06,
@@ -70,25 +79,41 @@ export default async (req) => {
     const tradingAllowed = await riskManager.checkTradingAllowed(account, positions, portfolioHistory);
     log(`Risk check: ${tradingAllowed.allowed ? "ALLOWED" : "BLOCKED"} - ${tradingAllowed.reason}`);
 
+    // SL/TP checks
     const slTpActions = riskManager.checkStopLossTakeProfit(positions);
     for (const action of slTpActions) {
-      log(`STOP-LOSS/TAKE-PROFIT: ${action.symbol} - ${action.reason}`);
-      const result = await liquidatePosition(action.symbol);
-      actions.push({ type: "close", symbol: action.symbol, reason: action.reason, result });
-      log(`  Result: ${result.message}`);
+      log(`SL/TP: ${action.symbol} - ${action.reason}`);
+      try {
+        const result = await liquidatePosition(action.symbol);
+        actions.push({ type: "close", symbol: action.symbol, reason: action.reason, result });
+        botState.dailyTradeCount++;
+      } catch (e) {
+        log(`  Close failed: ${e.message}`);
+      }
     }
 
-    if (positions.length > 10) {
-      log("Portfolio has 10+ positions, checking for underperformers...");
-      const closed = await closeWorstPositions(positions, 0.025);
+    // Close underperformers when crowded
+    if (positions.length > 15) {
+      const closed = await closeWorstPositions(positions, 0.02);
       for (const c of closed) {
-        actions.push({ type: "close", symbol: c.symbol, reason: `Underperformer: ${(c.pnl * 100).toFixed(1)}%`, result: c.result });
+        actions.push({ type: "close", symbol: c.symbol, reason: `Underperformer`, result: c.result });
+        botState.dailyTradeCount++;
+      }
+    }
+
+    // Rotate stale positions
+    if (positions.length >= 20) {
+      const rotated = await rotateStalePositions(positions);
+      for (const r of rotated) {
+        actions.push({ type: "rotate", symbol: r.symbol, reason: r.reason, result: r.result });
+        botState.dailyTradeCount++;
       }
     }
 
     let newTrades = [];
     if (tradingAllowed.allowed) {
-      log(`Scanning ${WATCH_LIST.length} watch list symbols for signals...`);
+      // --- CRYPTO ---
+      log(`[CRYPTO] Scanning ${WATCH_LIST.length} symbols...`);
       
       const priceMap = {};
       let snapshotData;
@@ -103,65 +128,116 @@ export default async (req) => {
               priceMap[key.replace("/", "")] = price;
             }
           }
-          log(`Got prices for ${Object.keys(priceMap).length / 2} symbols`);
+          log(`[CRYPTO] Got prices for ${Object.keys(priceMap).length / 2} symbols`);
           const movers = scanMovers(snapshotData.snapshots);
-          log(`Top movers: ${movers.length}`);
+          if (movers.length > 0) log(`[CRYPTO] Top movers: ${movers.length}`);
         }
       } catch (e) {
-        log(`Snapshot fetch failed: ${e.message}`);
+        log(`[CRYPTO] Snapshot failed: ${e.message}`);
       }
       
       const barsBySymbol = {};
       const bars15MBySymbol = {};
+      const bars5MBySymbol = {};
       let fetched = 0;
       
       for (const symbol of WATCH_LIST) {
         try {
           const dataSymbol = toDataSymbol(symbol);
-          const barsResp = await getCryptoBars(dataSymbol, "1Hour", 100);
-          if (barsResp.bars) {
-            const barsKey = Object.keys(barsResp.bars).find(k => k === dataSymbol || k === symbol || k === toTradeSymbol(symbol));
-            if (barsKey && barsResp.bars[barsKey]) {
-              barsBySymbol[symbol] = barsResp.bars[barsKey];
+          
+          try {
+            const barsResp = await getCryptoBars(dataSymbol, "1Hour", 100);
+            if (barsResp.bars) {
+              const barsKey = Object.keys(barsResp.bars).find(k => k === dataSymbol || k === symbol || k === toTradeSymbol(symbol));
+              if (barsKey && barsResp.bars[barsKey]) barsBySymbol[symbol] = barsResp.bars[barsKey];
             }
-          }
+          } catch (e) { /* skip */ }
+          
           try {
             const bars15MResp = await getCryptoBars(dataSymbol, "15Min", 100);
             if (bars15MResp.bars) {
               const barsKey = Object.keys(bars15MResp.bars).find(k => k === dataSymbol || k === symbol || k === toTradeSymbol(symbol));
-              if (barsKey && bars15MResp.bars[barsKey]) {
-                bars15MBySymbol[symbol] = bars15MResp.bars[barsKey];
+              if (barsKey && bars15MResp.bars[barsKey]) bars15MBySymbol[symbol] = bars15MResp.bars[barsKey];
+            }
+          } catch (e) { /* optional */ }
+          
+          // 5M for scalp on movers only
+          if (snapshotData?.snapshots) {
+            const symData = snapshotData.snapshots[toDataSymbol(symbol)];
+            if (symData) {
+              const prevClose = symData.prevDailyBar?.c;
+              const latest = symData.latestTrade?.p || symData.dailyBar?.c;
+              if (prevClose && latest && Math.abs((latest - prevClose) / prevClose) > 0.02) {
+                try {
+                  const bars5MResp = await getCryptoBars(dataSymbol, "5Min", 100);
+                  if (bars5MResp.bars) {
+                    const barsKey = Object.keys(bars5MResp.bars).find(k => k === dataSymbol || k === symbol || k === toTradeSymbol(symbol));
+                    if (barsKey && bars5MResp.bars[barsKey]) bars5MBySymbol[symbol] = bars5MResp.bars[barsKey];
+                  }
+                } catch (e) { /* optional */ }
               }
             }
-          } catch (e) { /* 15M optional */ }
+          }
+          
           fetched++;
         } catch (e) {
-          log(`  Failed bars for ${symbol}: ${e.message}`);
+          log(`  [CRYPTO] Failed ${symbol}: ${e.message}`);
         }
       }
-      log(`Bar fetch: ${fetched}/${WATCH_LIST.length} symbols`);
+      log(`[CRYPTO] Bars: ${fetched}/${WATCH_LIST.length} symbols`);
 
-      const signals = scanSymbols(barsBySymbol, bars15MBySymbol);
+      const signals = scanSymbols(barsBySymbol, bars15MBySymbol, bars5MBySymbol);
       signalsFound = signals.length;
-      log(`Signals found: ${signalsFound}`);
-      
+      log(`[CRYPTO] Signals: ${signalsFound}`);
+
       for (const signal of signals) {
-        log(`  ${signal.symbol}: ${signal.signal.toUpperCase()} (str: ${(signal.strength * 100).toFixed(0)}%)`);
+        log(`  [CRYPTO] ${signal.symbol}: ${signal.signal.toUpperCase()} str=${(signal.strength * 100).toFixed(0)}% [${signal.strategy}]`);
         
         const tradeSym = toTradeSymbol(signal.symbol);
         const dataSym = toDataSymbol(signal.symbol);
         signal.currentPrice = priceMap[signal.symbol] || priceMap[dataSym] || priceMap[tradeSym] || 0;
         
-        if (signal.currentPrice > 0) {
+        if (signal.currentPrice > 0 && positions.length + newTrades.length < 25) {
           signal.symbol = tradeSym;
           const result = await executeSignal(signal, riskManager, equity, positions);
           actions.push({ type: "trade", signal, result });
-          log(`  Executed: ${result.message}`);
           if (result.success) {
             newTrades.push(signal);
             botState.totalTrades++;
+            botState.dailyTradeCount++;
           }
         }
+      }
+
+      // --- STOCKS ---
+      try {
+        const marketOpen = await isMarketOpen();
+        if (marketOpen) {
+          log(`[STOCKS] Market open, scanning ${STOCK_UNIVERSE.length} stocks...`);
+          const stockSnaps = await getStockSnapshot(STOCK_UNIVERSE);
+          const stockMovers = scanStockMovers(stockSnaps?.snapshots || {});
+          stockSignalsFound = stockMovers.length;
+          log(`[STOCKS] Movers: ${stockSignalsFound}`);
+
+          for (const mover of stockMovers.slice(0, 5)) {
+            if (mover.direction === "up" && positions.length + newTrades.length < 25) {
+              try {
+                const result = await executeStockSignal(
+                  { symbol: mover.symbol, signal: "buy", price: mover.price, strategy: "stock-momentum" },
+                  riskManager, equity, positions
+                );
+                actions.push({ type: "stock-trade", signal: { symbol: mover.symbol }, result });
+                if (result.success) {
+                  newTrades.push({ symbol: mover.symbol });
+                  botState.totalTrades++;
+                  botState.dailyTradeCount++;
+                }
+              } catch (e) { /* continue */ }
+            }
+          }
+        }
+      } catch (e) {
+        log(`[STOCKS] Scan failed: ${e.message}`);
       }
     }
 
@@ -170,34 +246,30 @@ export default async (req) => {
 
     botState.lastRun = runStart;
     botState.runHistory.push({
-      time: runStart,
-      equity,
-      tradingAllowed: tradingAllowed.allowed,
-      signalsFound,
-      tradesExecuted: newTrades.length,
-      slTpCloses: slTpActions.length,
+      time: runStart, equity, tradingAllowed: tradingAllowed.allowed,
+      cryptoSignals: signalsFound, stockSignals: stockSignalsFound,
+      tradesExecuted: newTrades.length, slTpCloses: slTpActions.length,
+      dailyTrades: botState.dailyTradeCount,
     });
-    botState.runHistory = botState.runHistory.slice(-50);
+    botState.runHistory = botState.runHistory.slice(-100);
 
-    log("=== Trading Bot v2 Cron Completed ===");
-
-    // Record successful run to persistent health store
-    const durationMs = Date.now() - runStartMs;
-    const health = await recordRun({ success: true, durationMs });
-    log(`Health: recorded run #${health.totalRuns}, consecutive errors: ${health.consecutiveErrors}`);
+    log(`=== Bot v3 Cron Done: ${botState.dailyTradeCount} daily trades ===`);
 
     return new Response(JSON.stringify({
       status: "ok",
-      version: "2.0-learning",
+      version: "3.0-high-volume",
       source: "cron",
       runAt: runStart,
       risk: riskSummary,
       tradingAllowed: tradingAllowed.allowed,
-      riskReason: tradingAllowed.reason,
       positions: positions.length,
+      cryptoSignals: signalsFound,
+      stockSignals: stockSignalsFound,
+      dailyTrades: botState.dailyTradeCount,
       actions: actions.map(a => ({
         type: a.type,
-        symbol: a.type === "close" ? a.symbol : a.signal?.symbol,
+        symbol: a.type === "close" || a.type === "rotate" ? a.symbol : a.signal?.symbol,
+        strategy: a.signal?.strategy,
         reason: a.reason || a.signal?.reasons?.join("; "),
         success: a.result?.success,
         message: a.result?.message,
@@ -209,36 +281,23 @@ export default async (req) => {
         adaptiveParams: learningInfo.adaptiveParams,
         lastAdaptation: learningInfo.lastAdaptation,
       },
-      logs: logs.slice(-30),
+      logs: logs.slice(-40),
       botState: {
         lastRun: botState.lastRun,
         totalTrades: botState.totalTrades,
         totalRuns: botState.runHistory.length,
         peakEquity: botState.peakEquity,
+        dailyTrades: botState.dailyTradeCount,
       },
     }, null, 2), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     });
   } catch (err) {
-    log(`FATAL ERROR: ${err.message}`);
-
-    // Record failed run to persistent health store
-    const durationMs = Date.now() - runStartMs;
-    try {
-      const health = await recordRun({ success: false, error: err.message, durationMs });
-      log(`Health: recorded failed run, consecutive errors: ${health.consecutiveErrors}`);
-    } catch (healthErr) {
-      log(`Health: failed to record error - ${healthErr.message}`);
-    }
-
+    log(`FATAL: ${err.message}`);
     return new Response(JSON.stringify({
-      status: "error",
-      version: "2.0-learning",
-      source: "cron",
-      error: err.message,
-      stack: err.stack,
-      logs,
+      status: "error", version: "3.0-high-volume", source: "cron",
+      error: err.message, stack: err.stack, logs,
     }), {
       status: 500,
       headers: { "Content-Type": "application/json" },

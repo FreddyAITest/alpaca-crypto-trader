@@ -28,6 +28,13 @@
   to = "/.netlify/functions/bot-status"
   status = 200
 
+# Health check endpoint (lightweight, for monitoring)
+[[redirects]]
+  from = "/api/health"
+  to = "/.netlify/functions/health"
+  status = 200
+  force = true
+
 # Alpaca proxy (account, positions, orders, activities, data)
 [[redirects]]
   from = "/api/*"
