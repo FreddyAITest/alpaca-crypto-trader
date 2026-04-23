@@ -43,12 +43,15 @@ async function waitForFill(orderId, maxWaitMs = 15000) {
 }
 
 /**
- * Execute a BUY for crypto with separate stop-loss and take-profit orders
- * v4: Waits for buy fill, then places SL/TP with actual filled qty
+ * Execute a BUY for crypto with stop-loss protection
+ * v4.2: Places only stop-loss (SL) after buy fill. TP is handled by the
+ * bot's periodic checkStopLossTakeProfit() via liquidation. This avoids
+ * Alpaca's qty locking issue where both SL and TP can't share the same qty.
+ * Waits for buy fill before placing SL with actual filled qty.
  */
 export async function executeBuy(symbol, qty, stopLossPrice, takeProfitPrice) {
-  if (stopLossPrice <= 0 || takeProfitPrice <= 0) {
-    return { success: false, message: `Invalid SL/TP for ${symbol}: SL=${stopLossPrice}, TP=${takeProfitPrice}` };
+  if (stopLossPrice <= 0) {
+    return { success: false, message: `Invalid SL for ${symbol}: SL=${stopLossPrice}` };
   }
 
   // Step 1: Place the market buy order
@@ -64,14 +67,14 @@ export async function executeBuy(symbol, qty, stopLossPrice, takeProfitPrice) {
     const buyResult = await submitOrder(marketOrder);
     const orderId = buyResult?.id || buyResult?.order?.id;
 
-    // Step 2: Wait for buy to fill, then place SL/TP with actual qty
+    // Step 2: Wait for buy to fill, then place SL with actual qty
     if (orderId) {
       try {
         const filledOrder = await waitForFill(orderId, 15000);
         const filledQty = parseFloat(filledOrder.filled_qty || filledOrder.qty || qty);
 
         if (filledQty > 0 && filledOrder.status === "filled") {
-          // Step 3: Place stop-loss order with actual filled quantity
+          // Place stop-loss order with actual filled quantity
           try {
             await submitOrder({
               symbol,
@@ -85,28 +88,15 @@ export async function executeBuy(symbol, qty, stopLossPrice, takeProfitPrice) {
           } catch (slErr) {
             console.log(`Stop-loss order failed for ${symbol}: ${slErr.message}`);
           }
-
-          // Step 4: Place take-profit order with actual filled quantity
-          try {
-            await submitOrder({
-              symbol,
-              qty: String(filledQty),
-              side: "sell",
-              type: "limit",
-              limit_price: String(takeProfitPrice),
-              time_in_force: "gtc",
-            });
-          } catch (tpErr) {
-            console.log(`Take-profit order failed for ${symbol}: ${tpErr.message}`);
-          }
+          // TP is handled by checkStopLossTakeProfit() in the cron cycle
         } else {
-          // Order not fully filled yet - place SL/TP with original qty as fallback
-          console.log(`Order ${orderId} not yet filled (status: ${filledOrder.status}), placing SL/TP with original qty`);
-          placeFallbackSLTP(symbol, qty, stopLossPrice, takeProfitPrice);
+          // Order not fully filled - place SL with original qty as fallback
+          console.log(`Order ${orderId} not yet filled, placing SL with original qty`);
+          placeFallbackSL(symbol, qty, stopLossPrice);
         }
       } catch (fillErr) {
-        console.log(`Could not confirm fill for ${symbol}: ${fillErr.message}. Placing SL/TP with original qty.`);
-        placeFallbackSLTP(symbol, qty, stopLossPrice, takeProfitPrice);
+        console.log(`Could not confirm fill for ${symbol}: ${fillErr.message}. Placing SL with original qty.`);
+        placeFallbackSL(symbol, qty, stopLossPrice);
       }
     }
 
@@ -114,7 +104,7 @@ export async function executeBuy(symbol, qty, stopLossPrice, takeProfitPrice) {
       success: true,
       order: marketOrder,
       result: buyResult,
-      message: `BUY ${qty} ${symbol} | SL: $${stopLossPrice.toFixed(2)} | TP: $${takeProfitPrice.toFixed(2)}`,
+      message: `BUY ${qty} ${symbol} | SL: $${stopLossPrice.toFixed(4)} (TP via cron at $${takeProfitPrice?.toFixed(4) || '6%'})`,
     };
   } catch (err) {
     return {
@@ -127,10 +117,9 @@ export async function executeBuy(symbol, qty, stopLossPrice, takeProfitPrice) {
 }
 
 /**
- * Fallback: place SL/TP with original qty when we can't confirm fill
+ * Fallback: place SL with original qty when we can't confirm fill
  */
-function placeFallbackSLTP(symbol, qty, stopLossPrice, takeProfitPrice) {
-  // These may fail if position doesn't exist yet, but it's worth trying
+function placeFallbackSL(symbol, qty, stopLossPrice) {
   submitOrder({
     symbol,
     qty: String(qty),
@@ -140,15 +129,6 @@ function placeFallbackSLTP(symbol, qty, stopLossPrice, takeProfitPrice) {
     limit_price: String(stopLossPrice * 0.995),
     time_in_force: "gtc",
   }).catch(e => console.log(`Fallback SL failed for ${symbol}: ${e.message}`));
-
-  submitOrder({
-    symbol,
-    qty: String(qty),
-    side: "sell",
-    type: "limit",
-    limit_price: String(takeProfitPrice),
-    time_in_force: "gtc",
-  }).catch(e => console.log(`Fallback TP failed for ${symbol}: ${e.message}`));
 }
 
 /**
@@ -298,9 +278,11 @@ export async function cancelSellOrders() {
 }
 
 /**
- * Re-place stop-loss and take-profit orders for all open positions
- * v4.1: Smart about existing orders — only adds MISSING SL or TP orders
- * Never cancels existing sell orders (avoids "insufficient balance" race condition)
+ * Ensure every open position has stop-loss protection
+ * v4.2: Only places stop_limit (SL) orders. TP is handled by the bot's
+ * periodic checkStopLossTakeProfit() which liquidates at TP thresholds.
+ * This avoids Alpaca's qty locking issue where multiple sell orders
+ * can't share the same position qty for crypto.
  * Uses available qty (position qty minus qty locked in existing sell orders)
  */
 export async function replaceStopsAndTargets(positions, stopLossPct = 0.03, takeProfitPct = 0.06) {
@@ -338,82 +320,55 @@ export async function replaceStopsAndTargets(positions, stopLossPct = 0.03, take
       qtyInSellOrders += parseFloat(ord.qty || 0);
     }
     const availableQty = Math.max(0, qty - qtyInSellOrders);
-    // Round to 6 decimal places
     const availableQtyRounded = Math.floor(availableQty * 1000000) / 1000000;
 
-    // Check what types of sell orders already exist
+    // Check if position already has a stop-loss order
     const hasStopLoss = existingSellOrders.some(o =>
       o.type === "stop_limit" || o.type === "stop"
     );
-    const hasTakeProfit = existingSellOrders.some(o =>
-      o.type === "limit" && o.side === "sell"
-    );
 
-    if (hasStopLoss && hasTakeProfit) {
-      // Already fully protected — skip
+    if (hasStopLoss) {
+      // Already has SL protection — skip
       continue;
     }
 
-    // If no available qty, can't place any orders
+    // If no available qty, can't place SL
     if (availableQtyRounded <= 0) {
       actions.push({
         symbol,
         action: "skip",
-        reason: `No available qty (total=${qty}, locked=${qtyInSellOrders})`,
+        reason: `No available qty for SL (total=${qty}, locked=${qtyInSellOrders})`,
       });
       continue;
     }
 
-    // Calculate SL/TP prices from entry
+    // Calculate SL price from entry
     const stopPrice = entry * (1 - stopLossPct);
-    const takeProfitPrice = entry * (1 + takeProfitPct);
 
-    // Don't place stops that would trigger immediately
-    if (current <= stopPrice || current >= takeProfitPrice) {
+    // Don't place stop that would trigger immediately
+    if (current <= stopPrice) {
       actions.push({
         symbol,
         action: "skip",
-        reason: `Current $${current.toFixed(4)} past SL $${stopPrice.toFixed(4)} or TP $${takeProfitPrice.toFixed(4)}`,
+        reason: `Current $${current.toFixed(4)} at/below SL $${stopPrice.toFixed(4)}`,
       });
       continue;
     }
 
-    // Place only the MISSING order type, using available qty
-    if (!hasStopLoss) {
-      try {
-        await submitOrder({
-          symbol,
-          qty: String(availableQtyRounded),
-          side: "sell",
-          type: "stop_limit",
-          stop_price: String(stopPrice),
-          limit_price: String(stopPrice * 0.995),
-          time_in_force: "gtc",
-        });
-        actions.push({ symbol, action: "stop_loss_placed", price: stopPrice.toFixed(4) });
-      } catch (e) {
-        actions.push({ symbol, action: "stop_loss_failed", reason: e.message.slice(0, 100) });
-      }
-    }
-
-    if (!hasTakeProfit) {
-      // If we placed a stop-loss that used the available qty, we need even less available
-      // But since SL is a stop_limit (only triggers at stop price), it doesn't lock the qty
-      // the same way a regular limit sell would. Try with available qty.
-      const tpQty = !hasStopLoss ? availableQtyRounded : availableQtyRounded;
-      try {
-        await submitOrder({
-          symbol,
-          qty: String(tpQty),
-          side: "sell",
-          type: "limit",
-          limit_price: String(takeProfitPrice),
-          time_in_force: "gtc",
-        });
-        actions.push({ symbol, action: "take_profit_placed", price: takeProfitPrice.toFixed(4) });
-      } catch (e) {
-        actions.push({ symbol, action: "take_profit_failed", reason: e.message.slice(0, 100) });
-      }
+    // Place stop-loss order with available qty
+    try {
+      await submitOrder({
+        symbol,
+        qty: String(availableQtyRounded),
+        side: "sell",
+        type: "stop_limit",
+        stop_price: String(stopPrice),
+        limit_price: String(stopPrice * 0.995),
+        time_in_force: "gtc",
+      });
+      actions.push({ symbol, action: "stop_loss_placed", price: stopPrice.toFixed(4) });
+    } catch (e) {
+      actions.push({ symbol, action: "stop_loss_failed", reason: e.message.slice(0, 100) });
     }
   }
 
