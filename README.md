@@ -123,4 +123,4 @@ In production, Netlify Functions handle the proxy via `netlify/functions/alpaca-
 - Max 10% of equity per position
 - 2% stop-loss, 4% take-profit (2:1 R:R)
 - 3% daily loss limit — stops trading if hit
-- 8% daily profit target — secures profits
+- 8% daily profit target — secures profits# Build check - Thu Apr 23 05:25:27 PM UTC 2026
