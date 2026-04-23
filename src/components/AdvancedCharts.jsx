@@ -232,7 +232,7 @@ export default function AdvancedCharts() {
             bbLower.push({ time: t, value: bollinger.lower[i] });
           }
         }
-        const bbStyle = { color: cssVar('--accent-purple'), lineWidth: 1 };
+        const bbStyle = { color: cssVar('--accent-indigo'), lineWidth: 1 };
         candleChart.addLineSeries({ ...bbStyle, lineStyle: 0, title: 'BB Mid' }).setData(bbMid);
         candleChart.addLineSeries({ ...bbStyle, lineStyle: 2, title: 'BB Upper' }).setData(bbUpper);
         candleChart.addLineSeries({ ...bbStyle, lineStyle: 2, title: 'BB Lower' }).setData(bbLower);
@@ -391,19 +391,18 @@ export default function AdvancedCharts() {
 
         <div className="flex gap-1">
           {[
-            { label: 'RSI', state: showRSI, setter: setShowRSI, color: cssVar('--accent-blue') },
-            { label: 'MACD', state: showMACD, setter: setShowMACD, color: cssVar('--accent-amber') },
-            { label: 'Bollinger', state: showBollinger, setter: setShowBollinger, color: cssVar('--accent-purple') },
+            { label: 'RSI', state: showRSI, setter: setShowRSI, activeClass: 'bg-[var(--accent-blue)]/10 border-[var(--accent-blue)]/25 text-[var(--accent-blue)]' },
+            { label: 'MACD', state: showMACD, setter: setShowMACD, activeClass: 'bg-[var(--accent-amber)]/10 border-[var(--accent-amber)]/25 text-[var(--accent-amber)]' },
+            { label: 'Bollinger', state: showBollinger, setter: setShowBollinger, activeClass: 'bg-[var(--accent-indigo)]/10 border-[var(--accent-indigo)]/25 text-[var(--accent-indigo)]' },
           ].map(ind => (
             <button
               key={ind.label}
               onClick={() => ind.setter(!ind.state)}
               className={`px-2.5 py-1 text-xs rounded-lg border transition-colors ${
                 ind.state
-                  ? 'text-[var(--text-primary)]'
+                  ? ind.activeClass
                   : 'bg-[var(--bg-secondary)] border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
               }`}
-              style={ind.state ? { backgroundColor: ind.color + '22', borderColor: ind.color + '44', color: ind.color } : {}}
             >
               {ind.state ? '● ' : '○ '}{ind.label}
             </button>

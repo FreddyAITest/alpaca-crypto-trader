@@ -132,7 +132,7 @@ export default function PnLChart({ history }) {
             onClick={() => setMode(m.id)}
             className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
               mode === m.id
-                ? 'bg-[var(--accent-blue)] text-white shadow-lg shadow-[#448aff]/20'
+                ? 'bg-[var(--accent-blue)] text-[var(--text-primary)] shadow-lg shadow-[var(--accent-blue)]/20'
                 : 'bg-[var(--bg-input)] text-[var(--text-muted)] hover:bg-[var(--border)] hover:text-white'
             }`}
           >
