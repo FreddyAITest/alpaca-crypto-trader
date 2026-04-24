@@ -31,17 +31,17 @@ jobs:
           
           echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Triggering trading bot cron..."
           
-          # Build headers
-          HEADER_ARGS=("-s" "-S" "-f" "--max-time" "240" "-X" "POST")
+          # Build headers (do NOT use -f flag — we handle errors ourselves)
+          HEADER_ARGS=("-s" "-S" "--max-time" "240" "-X" "POST")
           
           # Add auth header if secret is set
           if [ -n "$BOT_SECRET" ]; then
             HEADER_ARGS+=("-H" "Authorization: Bearer $BOT_SECRET")
           fi
           
-          # Trigger the bot
-          HTTP_CODE=$(curl "${HEADER_ARGS[@]}" -o /tmp/bot-response.json -w "%{http_code}" "$URL" 2>/tmp/curl-stderr.txt)
-          CURL_EXIT=$?
+          # Trigger the bot (capture exit code without failing the step)
+          HTTP_CODE=$(curl "${HEADER_ARGS[@]}" -o /tmp/bot-response.json -w "%{http_code}" "$URL" 2>/tmp/curl-stderr.txt) || CURL_EXIT=$?
+          CURL_EXIT=${CURL_EXIT:-0}
           
           echo "HTTP Status: $HTTP_CODE"
           echo "Curl exit: $CURL_EXIT"
@@ -68,6 +68,7 @@ jobs:
           fi
 
       - name: Health Check
+        if: always()
         env:
           BOT_URL: ${{ secrets.TRADE_BOT_URL }}
           BOT_SECRET: ${{ secrets.TRADE_BOT_SECRET }}
