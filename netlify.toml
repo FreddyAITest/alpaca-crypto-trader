@@ -18,10 +18,10 @@
   to = "/.netlify/functions/analytics"
   status = 200
 
-# Bot status and run
+# Bot status and run (v5 with persistent state)
 [[redirects]]
   from = "/api/trading-bot/*"
-  to = "/.netlify/functions/trading-bot"
+  to = "/.netlify/functions/trading-bot-v5"
   status = 200
   query = {path = ":path"}
 
@@ -65,7 +65,7 @@
   to = "/index.html"
   status = 200
 
-# Scheduled function - runs every 5 minutes (no custom path allowed with schedule)
+# Scheduled function - runs every 5 minutes (v5 with persistent state)
 [functions."trading-bot-cron"]
   schedule = "*/5 * * * *"
 

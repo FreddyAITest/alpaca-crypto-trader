@@ -5,7 +5,7 @@
 // NOTE: Alpaca crypto does NOT support bracket/OTOCO orders
 // For crypto: simple market BUY + delayed SL/TP after fill confirmation
 
-import { submitOrder, closePosition, getPositions, getOrders, cancelOrder, getOrder, getAccount } from "./alpaca-client.js";
+import { submitOrder, closePosition, getPositions, getOrders, cancelOrder, getOrder, getAccount } from "./alpaca-client.mjs";
 
 /**
  * Wait for a market order to fill, polling every 2 seconds up to maxWait

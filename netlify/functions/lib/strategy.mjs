@@ -280,6 +280,20 @@ export function getLearningState() {
   return { ...learningState, tradeHistory: learningState.tradeHistory.slice(-20) };
 }
 
+/**
+ * Set the entire learning state from external persistent storage.
+ * Used by trading-bot v5 to restore state after cold starts.
+ */
+export function setLearningState(state) {
+  if (!state) return;
+  learningState.tradeHistory = state.tradeHistory || learningState.tradeHistory;
+  learningState.adaptiveParams = { ...learningState.adaptiveParams, ...(state.adaptiveParams || {}) };
+  learningState.winRate = state.winRate ?? learningState.winRate;
+  learningState.totalWins = state.totalWins ?? learningState.totalWins;
+  learningState.totalLosses = state.totalLosses ?? learningState.totalLosses;
+  learningState.lastAdaptation = state.lastAdaptation ?? learningState.lastAdaptation;
+}
+
 // =============================================
 // EXPANDED WATCH LIST - 60+ CRYPTO PAIRS
 // =============================================
