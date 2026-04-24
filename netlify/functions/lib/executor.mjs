@@ -228,16 +228,22 @@ export async function liquidatePosition(symbol) {
     };
   } catch (err) {
     // Crypto positions often fail with "insufficient balance" on closePosition
-    // because the crypto wallet has settlement delays. Fall back to market sell.
+    // because the crypto wallet has settlement delays (T+1).
+    // The error includes the "available" qty that IS settled and sellable.
+    // Fall back to market sell with only the available (settled) amount.
     const isCrypto = symbol.includes("USD") || symbol.includes("/");
     if (isCrypto && (err.message?.includes("insufficient balance") || err.message?.includes("403"))) {
       try {
-        const positions = await getPositions();
-        const pos = positions.find(p => p.symbol === symbol || p.asset_id === symbol);
-        if (pos && pos.qty) {
+        // Parse available qty from the error message
+        // Error format: {"available":"0.00000017","balance":"53.59999617",...}
+        const availableMatch = err.message?.match(/"available"\s*:\s*"([\d.]+)"/);
+        const availableQty = availableMatch ? availableMatch[1] : null;
+
+        if (availableQty && parseFloat(availableQty) > 0) {
+          const alpacaSymbol = symbol.includes("/") ? symbol : symbol.replace("USD", "/USD");
           const sellOrder = await submitOrder({
-            symbol: symbol,
-            qty: pos.qty,
+            symbol: alpacaSymbol,
+            qty: availableQty,
             side: "sell",
             type: "market",
             time_in_force: "gtc",
@@ -245,7 +251,13 @@ export async function liquidatePosition(symbol) {
           return {
             success: true,
             result: sellOrder,
-            message: `LIQUIDATED ${symbol} via market sell (qty: ${pos.qty})`,
+            message: `LIQUIDATED ${symbol} via market sell (settled qty: ${availableQty}, full balance unsettled)`,
+          };
+        } else if (availableQty === "0" || parseFloat(availableQty) === 0) {
+          return {
+            success: false,
+            error: "unsettled",
+            message: `LIQUIDATE SKIPPED ${symbol}: position fully unsettled, cannot sell yet`,
           };
         }
       } catch (sellErr) {
