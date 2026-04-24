@@ -141,21 +141,27 @@ export class RiskManager {
       const entry = parseFloat(pos.avg_entry_price);
       const current = parseFloat(pos.current_price);
       const side = pos.side;
+      // Determine strategy from position metadata if available; default to momentum
+      const strategy = pos.strategy || "momentum";
+      let slPct, tpPct;
+      switch (strategy) {
+        case "scalp": slPct = this.scalpStopLossPct; tpPct = this.scalpTakeProfitPct; break;
+        case "mean-reversion": slPct = this.meanRevStopLossPct; tpPct = this.meanRevTakeProfitPct; break;
+        default: slPct = this.defaultStopLossPct; tpPct = this.defaultTakeProfitPct; break;
+      }
 
       if (side === "long") {
         const pnlPct = (current - entry) / entry;
-        if (pnlPct <= -this.defaultStopLossPct) {
-          toClose.push({ symbol: pos.symbol, reason: `Stop-loss hit: ${(pnlPct * 100).toFixed(2)}% (SL: -${(this.defaultStopLossPct * 100).toFixed(1)}%)` });
-        } else if (pnlPct >= this.defaultTakeProfitPct) {
-          toClose.push({ symbol: pos.symbol, reason: `Take-profit hit: ${(pnlPct * 100).toFixed(2)}% (TP: +${(this.defaultTakeProfitPct * 100).toFixed(1)}%)` });
-        }
-      } else {
-        // Short positions
-        const pnlPct = (entry - current) / entry;
-        if (pnlPct <= -this.defaultStopLossPct) {
-          toClose.push({ symbol: pos.symbol, reason: `Stop-loss hit: ${(pnlPct * 100).toFixed(2)}% (SL: -${(this.defaultStopLossPct * 100).toFixed(1)}%)` });
-        } else if (pnlPct >= this.defaultTakeProfitPct) {
-          toClose.push({ symbol: pos.symbol, reason: `Take-profit hit: ${(pnlPct * 100).toFixed(2)}% (TP: +${(this.defaultTakeProfitPct * 100).toFixed(1)}%)` });
+        if (pnlPct <= -slPct) {
+          toClose.push({ symbol: pos.symbol, reason: `Stop-loss hit: ${(pnlPct * 100).toFixed(2)}% (SL: -${(slPct * 100).toFixed(1)}%)` });
+        } else if (pnlPct >= tpPct) {
+          toClose.push({ symbol: pos.symbol, reason: `Take-profit hit: ${(pnlPct * 100).toFixed(2)}% (TP: +${(tpPct * 100).toFixed(1)}%)` });
+        } else if (this.useTrailingStop && pnlPct >= 0.03) {
+          // Trailing stop: once up 3%, maintain 1.5% below highest watermark
+          const maxPnL = (parseFloat(pos.high_watermark || current) - entry) / entry;
+          if (pnlPct <= maxPnL - this.trailingStopPct) {
+            toClose.push({ symbol: pos.symbol, reason: `Trailing stop: ${(pnlPct * 100).toFixed(2)}% (max +${(maxPnL * 100).toFixed(1)}%)` });
+          }
         }
       }
     }

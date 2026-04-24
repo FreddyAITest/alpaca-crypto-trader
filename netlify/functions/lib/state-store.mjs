@@ -279,6 +279,38 @@ export async function loadPositionSnapshot() {
 }
 
 // ============================
+// Position Strategy Metadata
+// ============================
+
+/**
+ * Save position strategy metadata (which strategy opened each position).
+ * Used by risk-manager to apply strategy-specific SL/TP.
+ */
+export async function savePositionMeta(symbol, strategy) {
+  try {
+    const store = getStore(STORE_NAME);
+    const raw = await store.get("position-meta", { type: "json" });
+    const meta = raw || {};
+    meta[symbol] = strategy;
+    await store.setJSON("position-meta", meta);
+    return true;
+  } catch (e) {
+    console.log(`StateStore: could not save position meta - ${e.message}`);
+    return false;
+  }
+}
+
+export async function loadPositionMeta() {
+  try {
+    const store = getStore(STORE_NAME);
+    return await store.get("position-meta", { type: "json" }) || {};
+  } catch (e) {
+    console.log(`StateStore: could not load position meta - ${e.message}`);
+    return {};
+  }
+}
+
+// ============================
 // Atomic State Updates
 // ============================
 

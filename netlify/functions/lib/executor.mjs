@@ -510,16 +510,16 @@ export async function executeSignal(signal, riskManager, equity, positions) {
     stopLoss = signal.currentPrice - atrValue * atrMult;
     takeProfit = signal.currentPrice + atrValue * (atrMult * 2); // 2:1 R:R
   } else {
-    // Default percentage stops
-    let slPct = 0.03; // 3%
-    let tpPct = 0.06; // 6%
+    // Default percentage stops — fetched from riskManager strategy-specific config
+    let slPct = riskManager.defaultStopLossPct || 0.035;
+    let tpPct = riskManager.defaultTakeProfitPct || 0.07;
 
     if (signal.strategy === "scalp") {
-      slPct = 0.015; // 1.5% (tighter for scalps)
-      tpPct = 0.03;  // 3%
+      slPct = riskManager.scalpStopLossPct || 0.01;
+      tpPct = riskManager.scalpTakeProfitPct || 0.02;
     } else if (signal.strategy === "mean-reversion") {
-      slPct = 0.04;  // 4% (wider for MR)
-      tpPct = 0.04;  // 4% (1:1 for MR)
+      slPct = riskManager.meanRevStopLossPct || 0.025;
+      tpPct = riskManager.meanRevTakeProfitPct || 0.035;
     }
 
     stopLoss = signal.currentPrice * (1 - slPct);

@@ -183,6 +183,79 @@ function vwap(bars) {
 }
 
 /**
+ * Calculate ADX (Average Directional Index) +DI and -DI
+ */
+function adx(bars, period = 14) {
+  if (bars.length < period + 1) return { adx: [], plusDI: [], minusDI: [], current: 0 };
+  const highs = bars.map(b => b.h || b.high);
+  const lows = bars.map(b => b.l || b.low);
+  const closes = bars.map(b => b.c || b.close);
+  const tr = [];
+  const plusDM = [];
+  const minusDM = [];
+  for (let i = 1; i < bars.length; i++) {
+    const h = highs[i] - highs[i - 1];
+    const l = lows[i - 1] - lows[i];
+    const atrVal = Math.max(highs[i] - lows[i], Math.abs(highs[i] - closes[i - 1]), Math.abs(lows[i] - closes[i - 1]));
+    tr.push(atrVal);
+    plusDM.push(h > l && h > 0 ? h : 0);
+    minusDM.push(l > h && l > 0 ? l : 0);
+  }
+  let sumTR = 0, sumPlus = 0, sumMinus = 0;
+  for (let i = 0; i < period; i++) { sumTR += tr[i]; sumPlus += plusDM[i]; sumMinus += minusDM[i]; }
+  let atrSmoothed = sumTR;
+  let plusSmoothed = sumPlus;
+  let minusSmoothed = sumMinus;
+  const adxVals = [];
+  const plusDI = [];
+  const minusDI = [];
+  for (let i = period; i < tr.length; i++) {
+    atrSmoothed = atrSmoothed - atrSmoothed / period + tr[i];
+    plusSmoothed = plusSmoothed - plusSmoothed / period + plusDM[i];
+    minusSmoothed = minusSmoothed - minusSmoothed / period + minusDM[i];
+    const pDI = 100 * plusSmoothed / atrSmoothed;
+    const mDI = 100 * minusSmoothed / atrSmoothed;
+    const dx = (Math.abs(pDI - mDI) / (pDI + mDI)) * 100 || 0;
+    adxVals.push(dx);
+    plusDI.push(pDI);
+    minusDI.push(mDI);
+  }
+  const adxSmoothed = ema(adxVals, period);
+  return { adx: adxSmoothed, plusDI, minusDI, current: adxSmoothed.length > 0 ? adxSmoothed[adxSmoothed.length - 1] : 0 };
+}
+
+/**
+ * Calculate On-Balance Volume (OBV)
+ */
+function obv(closes, volumes) {
+  const result = [0];
+  for (let i = 1; i < closes.length; i++) {
+    if (closes[i] > closes[i - 1]) result.push(result[i - 1] + volumes[i]);
+    else if (closes[i] < closes[i - 1]) result.push(result[i - 1] - volumes[i]);
+    else result.push(result[i - 1]);
+  }
+  return result;
+}
+
+/**
+ * Calculate OBV slope and divergence signal
+ */
+function obvDivergence(bars) {
+  if (bars.length < 30) return { slope: 0, divergence: "none" };
+  const closes = bars.map(b => b.c || b.close);
+  const volumes = bars.map(b => b.v || b.volume || 0);
+  const obvData = obv(closes, volumes);
+  const obvEma20 = ema(obvData, 20);
+  const lastIdx = closes.length - 1;
+  const obvSlope = obvData[lastIdx] - obvEma20[lastIdx];
+  // Detect bullish divergence: price making lower lows, OBV making higher lows
+  const priceLL = closes[lastIdx] < Math.min(...closes.slice(-10, -1));
+  const obvHL = obvData[lastIdx] > Math.min(...obvData.slice(-10, -1));
+  const divergence = priceLL && obvHL ? "bullish" : "none";
+  return { slope: obvSlope, divergence };
+}
+
+/**
  * Detect support/resistance levels from recent price action
  */
 function detectLevels(closes, lookback = 50, tolerance = 0.005) {
@@ -329,6 +402,13 @@ export const WATCH_LIST = [
   "ICP/USD", "XTZ/USD", "NEAR/USD", "CFX/USD", "ZRX/USD",
   "1INCH/USD", "BAL/USD", "SKL/USD", "CELO/USD", "ENJ/USD",
   "FLR/USD", "ORDI/USD", "WOO/USD", "PERP/USD", "DYDX/USD",
+];
+
+export const MEAN_REVERSION_PAIRS = [
+  "ETH/USD", "SOL/USD", "LINK/USD", "AVAX/USD", "AAVE/USD",
+  "UNI/USD", "MATIC/USD", "INJ/USD", "RNDR/USD", "FET/USD",
+  "ADA/USD", "DOT/USD", "ATOM/USD", "NEAR/USD", "ALGO/USD",
+  "ARB/USD", "OP/USD", "GRT/USD", "LDO/USD", "DYDX/USD",
 ];
 
 // Stock universe for when market is open (scanned separately)
@@ -589,12 +669,19 @@ function meanReversionStrategy(bars, params) {
   }
 
   const closes = bars.map(b => b.c || b.close);
+  const volumes = bars.map(b => b.v || b.volume || 0);
 
   const reasons = [];
   let buySignals = 0;
-  const totalChecks = 4;
+  const totalChecks = 6;
 
   const lastIdx = closes.length - 1;
+
+  // 0. ADX check — only trade mean-reversion when trend is weak (ADX < 25)
+  const adxData = adx(bars, 14);
+  if (adxData.current >= 25) {
+    return { signal: "hold", strength: 0, reasons: [`ADX too strong for MR: ${adxData.current.toFixed(1)}`], strategy: "mean-reversion" };
+  }
 
   // 1. RSI deeply oversold
   const rsi14 = rsi(closes, 14);
@@ -646,13 +733,26 @@ function meanReversionStrategy(bars, params) {
     }
   }
 
+  // 5. OBV bullish divergence: price making lower lows, OBV making higher lows
+  const obvDiv = obvDivergence(bars);
+  if (obvDiv.divergence === "bullish") {
+    buySignals += 1.5;
+    reasons.push("MR: OBV bullish divergence");
+  }
+
+  // 6. OBV positive slope confirmation
+  if (obvDiv.slope > 0) {
+    buySignals += 0.5;
+    reasons.push("MR: OBV rising (accumulation)");
+  }
+
   const strength = buySignals / totalChecks;
 
   if (strength >= 0.3) {
-    return { signal: "buy", strength: Math.min(strength, 0.9), reasons, strategy: "mean-reversion", indicators: { rsi: currentRsi } };
+    return { signal: "buy", strength: Math.min(strength, 0.9), reasons, strategy: "mean-reversion", indicators: { rsi: currentRsi, adx: adxData.current, obvSlope: obvDiv.slope } };
   }
 
-  return { signal: "hold", strength: 0, reasons: ["No MR signal"], strategy: "mean-reversion", indicators: { rsi: currentRsi } };
+  return { signal: "hold", strength: 0, reasons: ["No MR signal"], strategy: "mean-reversion", indicators: { rsi: currentRsi, adx: adxData.current } };
 }
 
 // =============================================
