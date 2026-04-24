@@ -20,10 +20,16 @@
 
 # Bot status and run (v5 with persistent state)
 [[redirects]]
+  from = "/api/trading-bot/run"
+  to = "/.netlify/functions/trading-bot-v5"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/api/trading-bot/*"
   to = "/.netlify/functions/trading-bot-v5"
   status = 200
-  query = {path = ":path"}
+  force = true
 
 # Bot status endpoint (dedicated function for status/health data)
 [[redirects]]
