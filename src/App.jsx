@@ -90,7 +90,16 @@ function App() {
         fetchWeeklyPnL(),
       ]);
       if (acc.status === 'fulfilled') setAccount(acc.value);
-      else setError('Failed to load account: ' + acc.reason?.message);
+      else {
+        const isTransient = acc.reason?.isTransient;
+        if (isTransient) {
+          // Transient error (502/503/429) - show warning but don't block UI
+          // Keep existing account data if available, just show reconnect banner
+          console.warn('Transient account fetch error:', acc.reason?.message);
+        } else {
+          setError('Failed to load account: ' + acc.reason?.message);
+        }
+      }
       if (pos.status === 'fulfilled') setPositions(Array.isArray(pos.value) ? pos.value : []);
       if (ord.status === 'fulfilled') setOrders(Array.isArray(ord.value) ? ord.value : []);
       if (hist.status === 'fulfilled') setHistory(hist.value);
@@ -165,6 +174,30 @@ function App() {
         <div className="text-center">
           <div className="text-4xl mb-4">📈</div>
           <div className="text-[var(--text-secondary)] text-lg">Loading trading dashboard...</div>
+          {error && (
+            <div className="mt-4 text-sm text-[var(--accent-red)]">
+              {error}. Retrying...
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // If we have no account data at all and got a transient error, show reconnecting state
+  if (!account && !loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[var(--bg-primary)]">
+        <div className="text-center">
+          <div className="text-4xl mb-4">⚠️</div>
+          <div className="text-[var(--text-secondary)] text-lg mb-2">Connecting to Alpaca...</div>
+          <div className="text-sm text-[var(--text-muted)]">The trading API is temporarily unavailable. Auto-retrying...</div>
+          <button
+            onClick={refresh}
+            className="mt-4 px-4 py-2 bg-[var(--accent-blue)] text-white rounded-lg hover:opacity-80 transition-opacity"
+          >
+            Retry Now
+          </button>
         </div>
       </div>
     );

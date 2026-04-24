@@ -4,20 +4,41 @@ const HEADERS = {
   "Content-Type": "application/json",
 };
 
+// Retry transient errors (502, 503, 429) with exponential backoff
+const RETRYABLE_STATUSES = [502, 503, 429];
+
+async function fetchWithRetry(url, options = {}, retries = 3, backoffMs = 1000) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const res = await fetch(url, options);
+    if (RETRYABLE_STATUSES.includes(res.status) && attempt < retries) {
+      const delay = backoffMs * Math.pow(2, attempt);
+      await new Promise(r => setTimeout(r, delay));
+      continue;
+    }
+    return res;
+  }
+}
+
 export async function fetchAccount() {
-  const res = await fetch(`${API_BASE}/account`, { headers: HEADERS });
-  if (!res.ok) throw new Error(`Account fetch failed: ${res.status}`);
+  const res = await fetchWithRetry(`${API_BASE}/account`, { headers: HEADERS });
+  if (!res.ok) {
+    const isTransient = RETRYABLE_STATUSES.includes(res.status);
+    const err = new Error(`Account fetch failed: ${res.status}`);
+    err.isTransient = isTransient;
+    err.status = res.status;
+    throw err;
+  }
   return res.json();
 }
 
 export async function fetchPositions() {
-  const res = await fetch(`${API_BASE}/positions`, { headers: HEADERS });
+  const res = await fetchWithRetry(`${API_BASE}/positions`, { headers: HEADERS });
   if (!res.ok) throw new Error(`Positions fetch failed: ${res.status}`);
   return res.json();
 }
 
 export async function fetchOrders(status = "open") {
-  const res = await fetch(`${API_BASE}/orders?status=${status}`, { headers: HEADERS });
+  const res = await fetchWithRetry(`${API_BASE}/orders?status=${status}`, { headers: HEADERS });
   if (!res.ok) throw new Error(`Orders fetch failed: ${res.status}`);
   return res.json();
 }
