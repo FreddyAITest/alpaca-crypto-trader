@@ -218,6 +218,7 @@ export async function liquidatePosition(symbol) {
     console.log(`Cancel orders for ${symbol} failed: ${e.message}`);
   }
 
+  // Try Alpaca close position endpoint first
   try {
     const result = await closePosition(symbol);
     return {
@@ -226,6 +227,35 @@ export async function liquidatePosition(symbol) {
       message: `LIQUIDATED ${symbol}`,
     };
   } catch (err) {
+    // Crypto positions often fail with "insufficient balance" on closePosition
+    // because the crypto wallet has settlement delays. Fall back to market sell.
+    const isCrypto = symbol.includes("USD") || symbol.includes("/");
+    if (isCrypto && (err.message?.includes("insufficient balance") || err.message?.includes("403"))) {
+      try {
+        const positions = await getPositions();
+        const pos = positions.find(p => p.symbol === symbol || p.asset_id === symbol);
+        if (pos && pos.qty) {
+          const sellOrder = await submitOrder({
+            symbol: symbol,
+            qty: pos.qty,
+            side: "sell",
+            type: "market",
+            time_in_force: "gtc",
+          });
+          return {
+            success: true,
+            result: sellOrder,
+            message: `LIQUIDATED ${symbol} via market sell (qty: ${pos.qty})`,
+          };
+        }
+      } catch (sellErr) {
+        return {
+          success: false,
+          error: sellErr.message,
+          message: `LIQUIDATE FAILED ${symbol}: closePosition error: ${err.message}; market sell error: ${sellErr.message}`,
+        };
+      }
+    }
     return {
       success: false,
       error: err.message,
