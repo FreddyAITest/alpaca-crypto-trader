@@ -230,7 +230,8 @@ export async function liquidatePosition(symbol) {
     // Crypto positions often fail with "insufficient balance" on closePosition
     // because the crypto wallet has settlement delays (T+1).
     // The error includes the "available" qty that IS settled and sellable.
-    // Fall back to market sell with only the available (settled) amount.
+    // v6: Only fall back to market sell if available qty is worth at least $1
+    // (avoids useless tiny-dust sells like 0.000000662 qty worth fractions of a cent)
     const isCrypto = symbol.includes("USD") || symbol.includes("/");
     if (isCrypto && (err.message?.includes("insufficient balance") || err.message?.includes("403"))) {
       try {
@@ -240,6 +241,27 @@ export async function liquidatePosition(symbol) {
         const availableQty = availableMatch ? availableMatch[1] : null;
 
         if (availableQty && parseFloat(availableQty) > 0) {
+          // v6: Check if available qty is worth at least $1 (avoid dust sells)
+          // We need the current price. Try to parse it from the position data we may have,
+          // or estimate from the balance/available ratio. If we can't determine value,
+          // skip the sell rather than placing a dust order.
+          const availNum = parseFloat(availableQty);
+          
+          // Parse total balance from error to estimate what fraction is available
+          const balanceMatch = err.message?.match(/"balance"\s*:\s*"([\d.]+)"/);
+          const totalBalance = balanceMatch ? parseFloat(balanceMatch[1]) : 0;
+          const availableFraction = totalBalance > 0 ? availNum / totalBalance : 0;
+          
+          // If less than 10% of the position is available (settled), it's too early to sell
+          // Most of the position is still unsettled — wait for T+1 settlement
+          if (availableFraction < 0.10) {
+            return {
+              success: false,
+              error: "mostly_unsettled",
+              message: `LIQUIDATE SKIPPED ${symbol}: only ${(availableFraction * 100).toFixed(2)}% settled (available=${availableQty}, total=${totalBalance.toFixed(4)}). Wait for settlement.`,
+            };
+          }
+          
           const alpacaSymbol = symbol.includes("/") ? symbol : symbol.replace("USD", "/USD");
           const sellOrder = await submitOrder({
             symbol: alpacaSymbol,
@@ -561,6 +583,14 @@ export async function closeWorstPositions(positions, maxLossPct = 0.015) {
     const current = parseFloat(pos.current_price);
     const pnlPct = (current - entry) / entry;
     if (pnlPct <= -maxLossPct) {
+      // v6: Skip crypto positions that are mostly unsettled (qty_available / qty < 10%)
+      // These can't be sold and will just generate useless dust orders
+      const qty = parseFloat(pos.qty);
+      const qtyAvailable = parseFloat(pos.qty_available || qty); // qty_available from Alpaca
+      const isCrypto = pos.asset_class === "crypto" || pos.symbol.includes("USD") || pos.symbol.includes("/");
+      if (isCrypto && qty > 0 && qtyAvailable / qty < 0.10) {
+        continue; // Skip — not enough settled qty to sell meaningfully
+      }
       const result = await liquidatePosition(pos.symbol);
       closed.push({ symbol: pos.symbol, pnl: pnlPct, result });
     }
@@ -583,6 +613,14 @@ export async function rotateStalePositions(positions, equity = 100000) {
     const pnlPct = (current - entry) / entry;
     const marketValue = parseFloat(pos.market_value || 0);
     const exposurePct = totalExposure > 0 ? (marketValue / totalExposure) * 100 : 0;
+
+    // v6: Skip crypto positions that are mostly unsettled
+    const qty = parseFloat(pos.qty);
+    const qtyAvailable = parseFloat(pos.qty_available || qty);
+    const isCrypto = pos.asset_class === "crypto" || pos.symbol.includes("USD") || pos.symbol.includes("/");
+    if (isCrypto && qty > 0 && qtyAvailable / qty < 0.10) {
+      continue; // Skip — can't sell settled portion meaningfully
+    }
 
     // ROTATION CRITERIA (more aggressive than v3):
     // 1. Small positions under $400 that are flat (neither winning nor losing much)
@@ -624,6 +662,14 @@ export async function rotateBottomPerformers(positions, count = 2) {
     const entry = parseFloat(pos.avg_entry_price);
     const current = parseFloat(pos.current_price);
     const pnlPct = (current - entry) / entry;
+
+    // v6: Skip crypto positions that are mostly unsettled
+    const qty = parseFloat(pos.qty);
+    const qtyAvailable = parseFloat(pos.qty_available || qty);
+    const isCrypto = pos.asset_class === "crypto" || pos.symbol.includes("USD") || pos.symbol.includes("/");
+    if (isCrypto && qty > 0 && qtyAvailable / qty < 0.10) {
+      continue; // Skip — can't sell settled portion meaningfully
+    }
 
     // Only rotate if losing more than 0.3% (don't close tiny losses)
     if (pnlPct < -0.003) {

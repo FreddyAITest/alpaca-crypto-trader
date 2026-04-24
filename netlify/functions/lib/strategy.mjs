@@ -223,11 +223,11 @@ function detectLevels(closes, lookback = 50, tolerance = 0.005) {
 let learningState = {
   tradeHistory: [],
   adaptiveParams: {
-    rsiOversold: 38,       // Wider to catch more oversold signals
-    rsiOverbought: 62,     // Wider to catch more overbought signals
-    signalThreshold: 0.18, // LOWER = MORE TRADES (v5: lowered from 0.22)
-    scalpThreshold: 0.10,  // Even lower scalp threshold for more trades (from 0.15)
-    volumeMultiplier: 1.0, // Lower volume requirement = more signals (from 1.2)
+    rsiOversold: 40,       // Wider to catch more oversold signals (v6: from 38)
+    rsiOverbought: 60,     // Wider to catch more overbought signals (v6: from 62)
+    signalThreshold: 0.14, // LOWER = MORE TRADES (v6: lowered from 0.18)
+    scalpThreshold: 0.08,  // Even lower scalp threshold (v6: from 0.10)
+    volumeMultiplier: 0.8, // Even lower volume requirement = more signals (v6: from 1.0)
     emaFastPeriod: 8,
     emaSlowPeriod: 21,
     stochOverbought: 80,
@@ -311,7 +311,7 @@ export const WATCH_LIST = [
   "MATIC/USD", "NEAR/USD", "ALGO/USD", "ARB/USD", "OP/USD",
   "APT/USD", "SUI/USD", "SEI/USD", "TIA/USD", "JUP/USD",
   "INJ/USD",
-  // AINarrative / AI tokens
+  // AI tokens
   "FET/USD", "RNDR/USD", "AGIX/USD", "OCEAN/USD", "WLD/USD",
   // Gaming/Metaverse
   "SAND/USD", "MANA/USD", "ENJ/USD", "GALA/USD", "IMX/USD",
@@ -324,6 +324,11 @@ export const WATCH_LIST = [
   // Other volatile alts
   "APE/USD", "YFI/USD", "BLUR/USD", "PENDLE/USD", "STG/USD",
   "LDO/USD", "RPL/USD", "SSV/USD", "MANTA/USD",
+  // v6: More volatile coins for higher trade velocity
+  "TRX/USD", "HBAR/USD", "TON/USD", "EGLD/USD", "FTM/USD",
+  "ICP/USD", "XTZ/USD", "NEAR/USD", "CFX/USD", "ZRX/USD",
+  "1INCH/USD", "BAL/USD", "SKL/USD", "CELO/USD", "ENJ/USD",
+  "FLR/USD", "ORDI/USD", "WOO/USD", "PERP/USD", "DYDX/USD",
 ];
 
 // Stock universe for when market is open (scanned separately)

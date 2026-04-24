@@ -106,15 +106,15 @@ export default async (req) => {
       log(`Learning: could not fetch activities - ${e.message}`);
     }
 
-    // 4. Risk manager - v5 config (aggressive for maximum trade velocity)
+    // 4. Risk manager - v6 config (more aggressive for higher trade volume)
     const riskManager = new RiskManager({
       maxPositionPct: 0.10,       // 10% per position for bigger trades
       dailyLossLimitPct: 0.05,    // 5% daily loss limit
-      maxDrawdownPct: 0.08,       // 8% max drawdown
+      maxDrawdownPct: 0.10,       // 10% max drawdown (wider for crypto volatility)
       maxOpenPositions: 25,
       minTradeSizeUsd: 500,
-      defaultStopLossPct: 0.05,   // 5% SL (wider so fewer premature exits)
-      defaultTakeProfitPct: 0.08, // 8% TP
+      defaultStopLossPct: 0.04,   // 4% SL (v6: tighter from 5% for faster rotation)
+      defaultTakeProfitPct: 0.06, // 6% TP (v6: tighter from 8% for faster profit-taking)
       useAtrStops: true,
     });
 
@@ -124,7 +124,22 @@ export default async (req) => {
     log(`Risk check: ${tradingAllowed.allowed ? "ALLOWED" : "BLOCKED"} - ${tradingAllowed.reason}`);
 
     // 6. Check stop-loss / take-profit on existing positions
-    const slTpActions = riskManager.checkStopLossTakeProfit(positions);
+    // v6: Skip crypto positions that are mostly unsettled (qty_available ≈ 0)
+    const slTpActions = riskManager.checkStopLossTakeProfit(positions)
+      .filter(action => {
+        // Find the position for this action
+        const pos = positions.find(p => p.symbol === action.symbol);
+        if (pos) {
+          const qty = parseFloat(pos.qty);
+          const qtyAvailable = parseFloat(pos.qty_available ?? qty);
+          const isCrypto = pos.asset_class === "crypto" || pos.symbol.includes("USD") || pos.symbol.includes("/");
+          if (isCrypto && qty > 0 && qtyAvailable / qty < 0.10) {
+            log(`STOP-LOSS/TAKE-PROFIT: SKIPPED ${action.symbol} - only ${(qtyAvailable / qty * 100).toFixed(1)}% settled`);
+            return false;
+          }
+        }
+        return true;
+      });
     for (const action of slTpActions) {
       log(`STOP-LOSS/TAKE-PROFIT: ${action.symbol} - ${action.reason}`);
       try {
@@ -171,9 +186,9 @@ export default async (req) => {
       if (bottomRotated.length > 0) log(`Rotated ${bottomRotated.length} bottom performers`);
     }
 
-    // 6e. Re-place missing SL/TP orders for all open positions
+    // 6e. Re-place missing SL/TP orders for all open positions (v6: 4% SL, 6% TP)
     try {
-      const sltpResults = await replaceStopsAndTargets(positions, 0.05, 0.08);
+      const sltpResults = await replaceStopsAndTargets(positions, 0.04, 0.06);
       for (const r of sltpResults) {
         if (r.action && r.action !== "skip") {
           actions.push({ type: "sltp_replace", symbol: r.symbol, action: r.action, price: r.price });
