@@ -223,11 +223,11 @@ function detectLevels(closes, lookback = 50, tolerance = 0.005) {
 let learningState = {
   tradeHistory: [],
   adaptiveParams: {
-    rsiOversold: 35,       // Slightly wider than 30 to catch more oversold
-    rsiOverbought: 65,     // Slightly wider than 70
-    signalThreshold: 0.22, // LOWER = MORE TRADES (was 0.35, now 0.22)
-    scalpThreshold: 0.15,  // Even lower threshold for scalp signals
-    volumeMultiplier: 1.2, // Lower volume requirement = more signals trigger
+    rsiOversold: 38,       // Wider to catch more oversold signals
+    rsiOverbought: 62,     // Wider to catch more overbought signals
+    signalThreshold: 0.18, // LOWER = MORE TRADES (v5: lowered from 0.22)
+    scalpThreshold: 0.10,  // Even lower scalp threshold for more trades (from 0.15)
+    volumeMultiplier: 1.0, // Lower volume requirement = more signals (from 1.2)
     emaFastPeriod: 8,
     emaSlowPeriod: 21,
     stochOverbought: 80,

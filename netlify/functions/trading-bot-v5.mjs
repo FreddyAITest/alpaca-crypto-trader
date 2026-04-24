@@ -106,15 +106,15 @@ export default async (req) => {
       log(`Learning: could not fetch activities - ${e.message}`);
     }
 
-    // 4. Risk manager - v5 config (same as v4, persisted params from learning state)
+    // 4. Risk manager - v5 config (aggressive for maximum trade velocity)
     const riskManager = new RiskManager({
-      maxPositionPct: 0.05,
-      dailyLossLimitPct: 0.03,
-      maxDrawdownPct: 0.05,
+      maxPositionPct: 0.10,       // 10% per position for bigger trades
+      dailyLossLimitPct: 0.05,    // 5% daily loss limit
+      maxDrawdownPct: 0.08,       // 8% max drawdown
       maxOpenPositions: 25,
       minTradeSizeUsd: 500,
-      defaultStopLossPct: 0.03,
-      defaultTakeProfitPct: 0.06,
+      defaultStopLossPct: 0.05,   // 5% SL (wider so fewer premature exits)
+      defaultTakeProfitPct: 0.08, // 8% TP
       useAtrStops: true,
     });
 
@@ -137,10 +137,10 @@ export default async (req) => {
       }
     }
 
-    // 6b. Close underperformers — more aggressive threshold (1.5% loss)
-    if (positions.length > 10) {
-      log("Closing underperformers (threshold: -1.5%)...");
-      const closed = await closeWorstPositions(positions, 0.015);
+    // 6b. Close underperformers — v5: more aggressive threshold (0.3% loss) for faster capital turnover
+    if (positions.length > 3) {
+      log("Closing underperformers (threshold: -0.3%)...");
+      const closed = await closeWorstPositions(positions, 0.003);
       for (const c of closed) {
         actions.push({ type: "close", symbol: c.symbol, reason: `Underperformer: ${(c.pnl * 100).toFixed(1)}%`, result: c.result });
         botState.dailyTradeCount++;
@@ -148,8 +148,9 @@ export default async (req) => {
       if (closed.length > 0) log(`Closed ${closed.length} underperformers`);
     }
 
-    // 6c. Rotate stale/tiny positions to free up slots
-    if (positions.length >= 15) {
+    // 6c. Rotate stale/tiny positions to free up slots and capital
+    // v5: more aggressive — rotate positions older than 2h with pnl between -0.3% and +0.3%
+    if (positions.length >= 5) {
       log("Rotating stale positions...");
       const rotated = await rotateStalePositions(positions, equity);
       for (const r of rotated) {
@@ -159,10 +160,10 @@ export default async (req) => {
       if (rotated.length > 0) log(`Rotated ${rotated.length} stale positions`);
     }
 
-    // 6d. Rotate bottom 2 performers every cycle for learning velocity
-    if (positions.length >= 8) {
+    // 6d. Rotate bottom 3 performers every cycle for maximum learning velocity
+    if (positions.length >= 4) {
       log("Rotating bottom performers for velocity...");
-      const bottomRotated = await rotateBottomPerformers(positions, 2);
+      const bottomRotated = await rotateBottomPerformers(positions, 3);
       for (const r of bottomRotated) {
         actions.push({ type: "rotate_bottom", symbol: r.symbol, reason: r.reason, result: r.result });
         botState.dailyTradeCount++;
@@ -172,7 +173,7 @@ export default async (req) => {
 
     // 6e. Re-place missing SL/TP orders for all open positions
     try {
-      const sltpResults = await replaceStopsAndTargets(positions, 0.03, 0.06);
+      const sltpResults = await replaceStopsAndTargets(positions, 0.05, 0.08);
       for (const r of sltpResults) {
         if (r.action && r.action !== "skip") {
           actions.push({ type: "sltp_replace", symbol: r.symbol, action: r.action, price: r.price });

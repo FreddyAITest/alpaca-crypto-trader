@@ -2,8 +2,8 @@
 // Proxies requests to Alpaca paper trading API and crypto data API
 // Uses environment variables: ALPACA_API_KEY, ALPACA_SECRET_KEY
 
-const ALPACA_API_KEY = process.env.ALPACA_API_KEY || "";
-const ALPACA_SECRET_KEY = process.env.ALPACA_SECRET_KEY || "";
+const ALPACA_API_KEY=process.env.ALPACA_API_KEY || "";
+const ALPACA_SECRET_KEY=process.env.ALPACA_SECRET_KEY || "";
 const ALPACA_BASE = "https://paper-api.alpaca.markets/v2";
 const ALPACA_DATA_BASE = "https://data.alpaca.markets/v1beta3";
 

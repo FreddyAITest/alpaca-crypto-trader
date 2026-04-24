@@ -1,27 +1,27 @@
 // Risk Management Engine v4 - HIGH-VOLUME LEARNING BOT
-// More aggressive for learning velocity: higher position sizes, active SL/TP replacement
+// Risk Management Engine v5 - HIGH-VOLUME LEARNING BOT
+// Aggressive capital deployment for maximum trade velocity
 // Crypto + stocks (paper), targets hundreds of trades/day for fast learning
-// SL/TP orders are re-placed every cycle to ensure they exist
-
+// v5: 10% position sizing, tighter rotations, wider SL for less premature exits
 export class RiskManager {
   constructor(config = {}) {
-    // More aggressive risk parameters for v4 learning bot
-    this.maxPositionPct = config.maxPositionPct || 0.05;          // 5% of equity per position (up from 3%)
-    this.dailyLossLimitPct = config.dailyLossLimitPct || 0.03;     // Stop trading if down 3% today
-    this.maxDrawdownPct = config.maxDrawdownPct || 0.05;           // Stop all trading if drawdown > 5%
+    // v5: More aggressive parameters for maximum learning velocity
+    this.maxPositionPct = config.maxPositionPct || 0.10;          // 10% of equity per position (up from 5%)
+    this.dailyLossLimitPct = config.dailyLossLimitPct || 0.05;     // 5% daily loss limit (wider from 3%)
+    this.maxDrawdownPct = config.maxDrawdownPct || 0.08;           // 8% max drawdown (wider from 5%)
     this.maxOpenPositions = config.maxOpenPositions || 25;         // 25 concurrent positions
     this.minTradeSizeUsd = config.minTradeSizeUsd || 500;          // $500 minimum per trade
-    this.defaultStopLossPct = config.defaultStopLossPct || 0.03;   // 3% stop-loss
-    this.defaultTakeProfitPct = config.defaultTakeProfitPct || 0.06; // 6% take-profit (2:1 R:R)
-    this.dailyProfitTargetPct = config.dailyProfitTargetPct || 0.08; // 8% daily profit target (upper)
+    this.defaultStopLossPct = config.defaultStopLossPct || 0.05;   // 5% stop-loss (wider from 3% for less noise exit)
+    this.defaultTakeProfitPct = config.defaultTakeProfitPct || 0.08; // 8% take-profit (wider from 6%)
+    this.dailyProfitTargetPct = config.dailyProfitTargetPct || 0.10; // 10% daily profit target (raised from 8%)
 
     // Adaptive stops based on ATR
     this.useAtrStops = config.useAtrStops !== false; // Default true
-    this.atrStopMultiplier = config.atrStopMultiplier || 1.5;
-    this.atrProfitMultiplier = config.atrProfitMultiplier || 3;
+    this.atrStopMultiplier = config.atrStopMultiplier || 2.0;   // wider ATR stops (from 1.5)
+    this.atrProfitMultiplier = config.atrProfitMultiplier || 4; // wider ATR targets (from 3)
 
     // Trailing stop
-    this.trailingStopPct = config.trailingStopPct || 0.01; // 1% trailing
+    this.trailingStopPct = config.trailingStopPct || 0.015; // 1.5% trailing (from 1%)
   }
 
   /**

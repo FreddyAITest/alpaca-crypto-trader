@@ -411,9 +411,9 @@ export async function executeSignal(signal, riskManager, equity, positions) {
     tradeQty = minTradeSize / signal.currentPrice;
   }
 
-  // For scalp signals, use smaller position but still $500 minimum
+  // For scalp signals, use medium position (v5: bumped from 1% to 3%)
   if (signal.strategy === "scalp") {
-    const scalpTarget = Math.max(minTradeSize, equity * 0.01); // 1% of equity or $500, whichever is higher
+    const scalpTarget = Math.max(minTradeSize, equity * 0.03); // 3% of equity or $500, whichever is higher
     tradeQty = scalpTarget / signal.currentPrice;
   }
 
