@@ -1,6 +1,14 @@
 import { useState, useEffect, useMemo } from 'react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, CartesianGrid, Area, AreaChart } from 'recharts';
 
+// recharts v3 compatible bar shape: replaces the v2 "cell" prop which
+// was silently ignored after the upgrade to recharts 3.x.
+function PnLBarShape(props) {
+  const { x, y, width, height, payload } = props;
+  const fill = payload && payload.pnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
+  return <rect x={x} y={y} width={width} height={height} fill={fill} rx={4} ry={4} />;
+}
+
 const CHART_MODES = [
   { id: 'daily-pnl', label: 'Daily P&L', icon: '📊' },
   { id: 'weekly-pnl', label: 'Weekly P&L', icon: '📅' },
@@ -232,10 +240,7 @@ export default function PnLChart({ history }) {
               <Bar
                 dataKey="pnl"
                 radius={[4, 4, 0, 0]}
-                fill="var(--accent-blue)"
-                cell={({ payload }) => ({
-                  fill: payload.pnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)',
-                })}
+                shape={<PnLBarShape />}
               />
             </BarChart>
           </ResponsiveContainer>
@@ -265,9 +270,7 @@ export default function PnLChart({ history }) {
               <Bar
                 dataKey="pnl"
                 radius={[4, 4, 0, 0]}
-                cell={({ payload }) => ({
-                  fill: payload.pnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)',
-                })}
+                shape={<PnLBarShape />}
               />
             </BarChart>
           </ResponsiveContainer>
