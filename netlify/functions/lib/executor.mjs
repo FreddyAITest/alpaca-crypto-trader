@@ -441,44 +441,62 @@ export async function replaceStopsAndTargets(positions, stopLossPct = 0.03, take
 
 /**
  * Execute a signal from the strategy scanner
- * v4: $500+ trade sizes enforced, stock support, scalp-aware sizing
+ * v6: Enforces max $5k buy value, max $7k total position value, always checks existing position
  */
 export async function executeSignal(signal, riskManager, equity, positions) {
-  // Check if already in this position
-  const existingPos = positions?.find(p => p.symbol === signal.symbol);
-  if (existingPos) {
-    return { success: false, message: `Already in position: ${signal.symbol}` };
+  // v6: ALWAYS check existing position first — no buying the same symbol if we're near/at the limit
+  const buyCheck = riskManager.checkPositionBuyAllowed(
+    signal.symbol,
+    equity * riskManager.maxPositionPct, // proposed buy value (before capping)
+    positions
+  );
+  
+  if (!buyCheck.allowed) {
+    return { success: false, message: `Position limit: ${buyCheck.reason}` };
+  }
+  
+  // If we already hold this position, log it but proceed with reduced buy amount
+  if (buyCheck.existingValue > 0) {
+    console.log(`[POSITION-LIMIT] Adding to existing ${signal.symbol} position: ${buyCheck.reason}`);
   }
 
   // Check if we can open more positions
   const positionCheck = riskManager.canOpenPosition(positions);
   if (!positionCheck.allowed) {
-    return { success: false, message: positionCheck.reason };
+    // Still allow adding to existing positions even if at max count
+    if (buyCheck.existingValue === 0) {
+      return { success: false, message: positionCheck.reason };
+    }
   }
 
   if (!signal.currentPrice || signal.currentPrice <= 0) {
     return { success: false, message: `No current price for ${signal.symbol}` };
   }
 
-  // Get ATR value for adaptive stop sizing
-  const atrValue = signal.indicators?.atr || 0;
+  // v6: Use the buy-check-capped amount as our trade value
+  const cappedBuyValue = buyCheck.buyAmount;
 
-  const position = riskManager.calculatePositionSize(equity, signal.currentPrice, "long", atrValue);
+  // Calculate quantity from capped buy value
+  let tradeQty = cappedBuyValue / signal.currentPrice;
 
-  // ENFORCE $500 minimum trade size (upgrade from v2)
-  let tradeQty = position.qty;
-  const tradeValue = tradeQty * signal.currentPrice;
+  // ENFORCE $500 minimum trade size (but check against capped value first)
   const minTradeSize = riskManager.minTradeSizeUsd || 500;
-
-  if (tradeValue < minTradeSize) {
-    // Bump qty to meet minimum
-    tradeQty = minTradeSize / signal.currentPrice;
+  if (cappedBuyValue < minTradeSize) {
+    return { success: false, message: `Buy value $${cappedBuyValue.toFixed(2)} for ${signal.symbol} below minimum $${minTradeSize}` };
   }
 
   // For scalp signals, use medium position (v5: bumped from 1% to 3%)
+  // v6: Still cap at maxBuyValueUsd even for scalps
   if (signal.strategy === "scalp") {
-    const scalpTarget = Math.max(minTradeSize, equity * 0.03); // 3% of equity or $500, whichever is higher
-    tradeQty = scalpTarget / signal.currentPrice;
+    const scalpTarget = Math.max(minTradeSize, equity * 0.03);
+    const cappedScalpTarget = Math.min(scalpTarget, riskManager.maxBuyValueUsd);
+    // If adding to existing, also respect remaining room to maxPositionValueUsd
+    if (buyCheck.existingValue > 0) {
+      const roomToMax = riskManager.maxPositionValueUsd - buyCheck.existingValue;
+      tradeQty = Math.min(cappedScalpTarget, roomToMax) / signal.currentPrice;
+    } else {
+      tradeQty = cappedScalpTarget / signal.currentPrice;
+    }
   }
 
   // Round qty appropriately
@@ -488,9 +506,8 @@ export async function executeSignal(signal, riskManager, equity, positions) {
     // Stocks: whole shares only
     tradeQty = Math.floor(tradeQty);
     if (tradeQty < 1) {
-      // Use fractional if the stock supports it - try with qty 1
+      // Use fractional - round to 6 decimal
       tradeQty = minTradeSize / signal.currentPrice;
-      // Round to 6 decimal for fractional
       tradeQty = Math.floor(tradeQty * 1000000) / 1000000;
     }
   } else {
@@ -550,6 +567,7 @@ export async function executeSignal(signal, riskManager, equity, positions) {
 
 /**
  * Execute a stock signal from the stock scanner
+ * v6: Stocks also subject to $5k buy / $7k max position limits
  * Stocks use bracket orders and different quantity rules
  */
 export async function executeStockSignal(signal, riskManager, equity, positions) {
@@ -558,8 +576,18 @@ export async function executeStockSignal(signal, riskManager, equity, positions)
     return { success: false, message: `No price for stock ${signal.symbol}` };
   }
 
-  // Use 1% of equity per stock trade, $500 minimum
-  let positionValue = Math.max(equity * 0.01, riskManager.minTradeSizeUsd || 500);
+  // v6: Check position limits for stocks too
+  const buyCheck = riskManager.checkPositionBuyAllowed(
+    signal.symbol,
+    Math.max(equity * 0.01, riskManager.minTradeSizeUsd || 500),
+    positions
+  );
+  if (!buyCheck.allowed) {
+    return { success: false, message: `Stock position limit: ${buyCheck.reason}` };
+  }
+
+  // Use buy-check-capped amount, minimum $500
+  let positionValue = Math.max(buyCheck.buyAmount, riskManager.minTradeSizeUsd || 500);
   let qty = Math.floor(positionValue / signal.currentPrice);
 
   if (qty <= 0) {

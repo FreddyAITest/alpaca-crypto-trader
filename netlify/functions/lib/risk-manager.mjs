@@ -1,27 +1,27 @@
-// Risk Management Engine v4 - HIGH-VOLUME LEARNING BOT
-// Risk Management Engine v5 - HIGH-VOLUME LEARNING BOT
-// Aggressive capital deployment for maximum trade velocity
-// Crypto + stocks (paper), targets hundreds of trades/day for fast learning
-// v5: 10% position sizing, tighter rotations, wider SL for less premature exits
+// Risk Management Engine v6 - POSITION LIMITS
+// v6: Max position value $7k, max buy $5k, always check existing position before trading
+// Crypto + stocks (paper), targets 2-8% daily returns with controlled position sizes
 export class RiskManager {
   constructor(config = {}) {
-    // v5: More aggressive parameters for maximum learning velocity
-    this.maxPositionPct = config.maxPositionPct || 0.10;          // 10% of equity per position (up from 5%)
-    this.dailyLossLimitPct = config.dailyLossLimitPct || 0.05;     // 5% daily loss limit (wider from 3%)
-    this.maxDrawdownPct = config.maxDrawdownPct || 0.08;           // 8% max drawdown (wider from 5%)
+    // v6: Controlled position sizing — max $5k buy, max $7k total per position
+    this.maxPositionPct = config.maxPositionPct || 0.10;          // 10% of equity per position (fallback)
+    this.maxBuyValueUsd = config.maxBuyValueUsd || 5000;         // Max $5k per new buy order
+    this.maxPositionValueUsd = config.maxPositionValueUsd || 7000; // Max $7k total position value
+    this.dailyLossLimitPct = config.dailyLossLimitPct || 0.05;     // 5% daily loss limit
+    this.maxDrawdownPct = config.maxDrawdownPct || 0.08;           // 8% max drawdown
     this.maxOpenPositions = config.maxOpenPositions || 25;         // 25 concurrent positions
     this.minTradeSizeUsd = config.minTradeSizeUsd || 500;          // $500 minimum per trade
-    this.defaultStopLossPct = config.defaultStopLossPct || 0.05;   // 5% stop-loss (wider from 3% for less noise exit)
-    this.defaultTakeProfitPct = config.defaultTakeProfitPct || 0.08; // 8% take-profit (wider from 6%)
-    this.dailyProfitTargetPct = config.dailyProfitTargetPct || 0.10; // 10% daily profit target (raised from 8%)
+    this.defaultStopLossPct = config.defaultStopLossPct || 0.05;   // 5% stop-loss
+    this.defaultTakeProfitPct = config.defaultTakeProfitPct || 0.08; // 8% take-profit
+    this.dailyProfitTargetPct = config.dailyProfitTargetPct || 0.10; // 10% daily profit target
 
     // Adaptive stops based on ATR
     this.useAtrStops = config.useAtrStops !== false; // Default true
-    this.atrStopMultiplier = config.atrStopMultiplier || 2.0;   // wider ATR stops (from 1.5)
-    this.atrProfitMultiplier = config.atrProfitMultiplier || 4; // wider ATR targets (from 3)
+    this.atrStopMultiplier = config.atrStopMultiplier || 2.0;   // wider ATR stops
+    this.atrProfitMultiplier = config.atrProfitMultiplier || 4; // wider ATR targets
 
     // Trailing stop
-    this.trailingStopPct = config.trailingStopPct || 0.015; // 1.5% trailing (from 1%)
+    this.trailingStopPct = config.trailingStopPct || 0.015; // 1.5% trailing
   }
 
   /**
@@ -131,6 +131,75 @@ export class RiskManager {
   }
 
   /**
+   * v6: Check if we can buy a symbol — enforces max position value ($7k) and max buy ($5k)
+   * - If we already hold this symbol, check that the current value + buy amount doesn't exceed maxPositionValueUsd
+   * - The buy amount itself must not exceed maxBuyValueUsd
+   * - Returns { allowed, buyAmount, existingValue, reason }
+   */
+  checkPositionBuyAllowed(symbol, proposedBuyValue, currentPositions) {
+    const positions = Array.isArray(currentPositions) ? currentPositions : [];
+    
+    // Find existing position for this symbol
+    // Match both "BTC/USD" and "BTCUSD" style symbols
+    const existingPos = positions.find(p => {
+      const posSym = p.symbol || '';
+      return posSym === symbol || 
+             posSym === symbol.replace('/', '') || 
+             posSym.replace('/', '') === symbol.replace('/', '') ||
+             (symbol.includes('/') && posSym === symbol.split('/')[0] + 'USD') ||
+             (posSym.includes('/') && symbol === posSym.split('/')[0] + 'USD');
+    });
+
+    const existingValue = existingPos ? parseFloat(existingPos.market_value || 0) : 0;
+    
+    // Check if existing position already exceeds max value — no more buying allowed
+    if (existingPos && existingValue >= this.maxPositionValueUsd) {
+      return {
+        allowed: false,
+        buyAmount: 0,
+        existingValue,
+        reason: `Already holding $${existingValue.toFixed(2)} of ${symbol} — at or above max position value $${this.maxPositionValueUsd}`,
+      };
+    }
+
+    // Cap the buy amount at maxBuyValueUsd
+    let buyAmount = Math.min(proposedBuyValue, this.maxBuyValueUsd);
+
+    // If we already hold this symbol, cap total (existing + buy) at maxPositionValueUsd
+    if (existingPos && existingValue > 0) {
+      const roomToBuy = this.maxPositionValueUsd - existingValue;
+      if (roomToBuy <= 0) {
+        return {
+          allowed: false,
+          buyAmount: 0,
+          existingValue,
+          reason: `Already holding $${existingValue.toFixed(2)} of ${symbol} — no room to add ($${this.maxPositionValueUsd} max)`,
+        };
+      }
+      buyAmount = Math.min(buyAmount, roomToBuy);
+    }
+
+    // Don't allow tiny buys (< minTradeSizeUsd)
+    if (buyAmount < this.minTradeSizeUsd) {
+      return {
+        allowed: false,
+        buyAmount: 0,
+        existingValue,
+        reason: `Buy amount $${buyAmount.toFixed(2)} below minimum $${this.minTradeSizeUsd} for ${symbol}`,
+      };
+    }
+
+    return {
+      allowed: true,
+      buyAmount,
+      existingValue,
+      reason: existingPos 
+        ? `Adding $${buyAmount.toFixed(2)} to existing $${existingValue.toFixed(2)} position in ${symbol} (max $${this.maxPositionValueUsd})`
+        : `New position $${buyAmount.toFixed(2)} in ${symbol} (max $${this.maxBuyValueUsd} buy)`,
+    };
+  }
+
+  /**
    * Check if any open position has hit stop-loss or take-profit
    * v4: More aggressive — includes positions that are slightly profitable
    */
@@ -192,6 +261,8 @@ export class RiskManager {
       stopLossPct: this.defaultStopLossPct,
       takeProfitPct: this.defaultTakeProfitPct,
       minTradeSize: this.minTradeSizeUsd,
+      maxBuyValueUsd: this.maxBuyValueUsd,
+      maxPositionValueUsd: this.maxPositionValueUsd,
       status: dailyPnlPct <= -this.dailyLossLimitPct ? "STOPPED_LOSS"
             : dailyPnlPct >= this.dailyProfitTargetPct ? "STOPPED_PROFIT"
             : "TRADING",

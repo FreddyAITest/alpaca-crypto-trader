@@ -106,15 +106,17 @@ export default async (req) => {
       log(`Learning: could not fetch activities - ${e.message}`);
     }
 
-    // 4. Risk manager - v6 config (more aggressive for higher trade volume)
+    // 4. Risk manager - v6 config (position limits: $5k buy, $7k max per position)
     const riskManager = new RiskManager({
       maxPositionPct: 0.10,       // 10% per position for bigger trades
+      maxBuyValueUsd: 5000,      // Max $5k per buy order
+      maxPositionValueUsd: 7000, // Max $7k total per position
       dailyLossLimitPct: 0.05,    // 5% daily loss limit
       maxDrawdownPct: 0.10,       // 10% max drawdown (wider for crypto volatility)
       maxOpenPositions: 25,
       minTradeSizeUsd: 500,
-      defaultStopLossPct: 0.04,   // 4% SL (v6: tighter from 5% for faster rotation)
-      defaultTakeProfitPct: 0.06, // 6% TP (v6: tighter from 8% for faster profit-taking)
+      defaultStopLossPct: 0.04,   // 4% SL (v6: tighter from 5%)
+      defaultTakeProfitPct: 0.06, // 6% TP (v6: tighter from 8%)
       useAtrStops: true,
     });
 

@@ -14,29 +14,54 @@ export default function PnLChart({ history }) {
     if (!history || !history.equity || history.equity.length === 0) return null;
 
     const timestamps = history.timestamp;
-    const equities = history.equity.map(v => parseFloat(v));
+    const rawEquities = history.equity.map(v => parseFloat(v));
+
+    // Skip leading zero-equity entries — they represent days before
+    // the account was funded and would corrupt the baseline and daily P&L.
+    let startIdx = 0;
+    while (startIdx < rawEquities.length && rawEquities[startIdx] === 0) {
+      startIdx++;
+    }
+    // If all zeroes or fewer than 2 data points, nothing useful to chart
+    if (startIdx >= rawEquities.length) return null;
+
+    const timestampsFiltered = timestamps.slice(startIdx);
+    const equities = rawEquities.slice(startIdx);
+
+    // Use the first non-zero value *before* startIdx as the close of the
+    // "previous day", so the first real day shows its actual P&L change
+    // rather than a flat 0.
     const baseline = equities[0];
 
-    // Daily P&L data - group by day
+    // Daily P&L data - group by day using last-observation-per-day
     const dailyMap = {};
-    for (let i = 0; i < timestamps.length; i++) {
-      const date = new Date(timestamps[i] * 1000);
+    for (let i = 0; i < timestampsFiltered.length; i++) {
+      const date = new Date(timestampsFiltered[i] * 1000);
       const dayKey = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      if (!dailyMap[dayKey]) {
-        dailyMap[dayKey] = { date: dayKey, open: equities[i], close: equities[i] };
-      }
-      dailyMap[dayKey].close = equities[i];
+      // Always overwrite so we keep the last observation for the day
+      dailyMap[dayKey] = { date: dayKey, close: equities[i] };
     }
-    const dailyPnL = Object.values(dailyMap).map(d => ({
-      ...d,
-      pnl: d.close - d.open,
-      pnlPct: d.open > 0 ? ((d.close - d.open) / d.open) * 100 : 0,
-    }));
+
+    // Compute daily P&L as day-over-day change
+    const dailyKeys = Object.keys(dailyMap);
+    const dailyPnL = [];
+    for (let i = 0; i < dailyKeys.length; i++) {
+      const day = dailyMap[dailyKeys[i]];
+      const prevClose = i === 0 ? baseline : dailyPnL[i - 1].close;
+      const pnl = day.close - prevClose;
+      const pnlPct = prevClose > 0 ? ((day.close - prevClose) / prevClose) * 100 : 0;
+      dailyPnL.push({
+        ...day,
+        open: prevClose,
+        pnl,
+        pnlPct,
+      });
+    }
 
     // Weekly P&L data - group by week
     const weeklyMap = {};
-    for (let i = 0; i < timestamps.length; i++) {
-      const date = new Date(timestamps[i] * 1000);
+    for (let i = 0; i < timestampsFiltered.length; i++) {
+      const date = new Date(timestampsFiltered[i] * 1000);
       const weekStart = new Date(date);
       weekStart.setDate(date.getDate() - date.getDay());
       const weekKey = `Wk ${weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
@@ -53,7 +78,7 @@ export default function PnLChart({ history }) {
 
     // Cumulative returns data
     const cumulative = equities.map((eq, i) => ({
-      date: new Date(timestamps[i] * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      date: new Date(timestampsFiltered[i] * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
       returnPct: baseline > 0 ? ((eq - baseline) / baseline) * 100 : 0,
       equity: eq,
     }));

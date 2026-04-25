@@ -45,7 +45,11 @@ export default function RiskDashboard() {
 
         const hist = histRes.status === 'fulfilled' ? histRes.value : null;
         if (hist && hist.equity && hist.equity.length > 0) {
-          const curve = hist.equity.map(Number);
+          // Filter out leading zero-equity entries (days before account was funded)
+          const rawCurve = hist.equity.map(Number);
+          let startIdx = 0;
+          while (startIdx < rawCurve.length && rawCurve[startIdx] === 0) startIdx++;
+          const curve = startIdx < rawCurve.length ? rawCurve.slice(startIdx) : rawCurve;
           setEquityCurve(curve);
 
           // Compute drawdown curve

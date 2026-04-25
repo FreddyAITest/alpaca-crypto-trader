@@ -166,10 +166,14 @@ export default function PerformanceAnalytics() {
 
         const hist = histRes.status === 'fulfilled' ? histRes.value : null;
         if (hist && hist.equity && hist.equity.length > 0) {
-          const curve = hist.equity.map(Number);
+          // Filter out leading zero-equity entries (days before account was funded)
+          const rawCurve = hist.equity.map(Number);
+          let startIdx = 0;
+          while (startIdx < rawCurve.length && rawCurve[startIdx] === 0) startIdx++;
+          const curve = startIdx < rawCurve.length ? rawCurve.slice(startIdx) : rawCurve;
           setEquityCurve(curve);
 
-          // Daily returns
+          // Daily returns (skip zero-to-nonzero transitions)
           const returns = [];
           for (let i = 1; i < curve.length; i++) {
             if (curve[i - 1] !== 0) {

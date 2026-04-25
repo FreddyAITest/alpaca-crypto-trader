@@ -35,13 +35,23 @@ export default function PnLBreakdownChart() {
   };
 
   // Compute daily P&L from portfolio history
+  // Skip leading zero-equity entries (days before account was funded)
   const dailyPnL = [];
   if (history?.timestamp && history?.equity) {
-    for (let i = 1; i < history.timestamp.length; i++) {
-      const prev = parseFloat(history.equity[i - 1]);
-      const curr = parseFloat(history.equity[i]);
+    const equities = history.equity.map(v => parseFloat(v));
+    const timestamps = history.timestamp;
+    let startIdx = 0;
+    while (startIdx < equities.length && equities[startIdx] === 0) {
+      startIdx++;
+    }
+    // Need at least 2 valid data points for day-over-day P&L
+    for (let i = Math.max(startIdx + 1, 1); i < timestamps.length; i++) {
+      const prev = parseFloat(equities[i - 1]);
+      const curr = parseFloat(equities[i]);
+      // Skip transitions from 0 to non-zero (account funding day)
+      if (prev === 0) continue;
       const pnl = curr - prev;
-      const date = new Date(history.timestamp[i] * 1000);
+      const date = new Date(timestamps[i] * 1000);
       dailyPnL.push({
         date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
         pnl,
