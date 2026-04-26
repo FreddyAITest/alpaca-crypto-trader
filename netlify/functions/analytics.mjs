@@ -2,7 +2,7 @@
 // Computes win rate, profit factor, Sharpe ratio, max drawdown, best/worst trades
 // Data sources: Alpaca activities API (FILL type) + portfolio history
 
-import { getAccount, getPositions, getActivities, getPortfolioHistory } from "./lib/alpaca-client.mjs";
+import { getAccount, getPositions, getActivities, getPortfolioHistory } from './lib/alpaca-client.mjs';
 
 function aggregateTrades(activities) {
   // Group fills by order_id to reconstruct full trades

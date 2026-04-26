@@ -12,7 +12,7 @@
 /**
  * Calculate Exponential Moving Average
  */
-function ema(data, period) {
+export function ema(data, period) {
   if (data.length < period) return [];
   const k = 2 / (period + 1);
   const result = [];
@@ -28,7 +28,7 @@ function ema(data, period) {
 /**
  * Calculate RSI (Relative Strength Index)
  */
-function rsi(closes, period = 14) {
+export function rsi(closes, period = 14) {
   if (closes.length < period + 1) return [];
   const result = [];
   let gains = 0, losses = 0;
@@ -52,7 +52,7 @@ function rsi(closes, period = 14) {
 /**
  * Calculate Stochastic Oscillator (%K and %D)
  */
-function stochastic(bars, kPeriod = 14, dPeriod = 3) {
+export function stochastic(bars, kPeriod = 14, dPeriod = 3) {
   if (bars.length < kPeriod) return { k: [], d: [] };
   const k = [];
   for (let i = kPeriod - 1; i < bars.length; i++) {
@@ -72,7 +72,7 @@ function stochastic(bars, kPeriod = 14, dPeriod = 3) {
 /**
  * Calculate MACD
  */
-function macd(closes, fastPeriod = 12, slowPeriod = 26, signalPeriod = 9) {
+export function macd(closes, fastPeriod = 12, slowPeriod = 26, signalPeriod = 9) {
   const emaFast = ema(closes, fastPeriod);
   const emaSlow = ema(closes, slowPeriod);
   if (emaFast.length < slowPeriod || emaSlow.length < slowPeriod) {
@@ -103,7 +103,7 @@ function macd(closes, fastPeriod = 12, slowPeriod = 26, signalPeriod = 9) {
 /**
  * Calculate Bollinger Bands
  */
-function bollingerBands(closes, period = 20, stdDev = 2) {
+export function bollingerBands(closes, period = 20, stdDev = 2) {
   if (closes.length < period) return { upper: [], middle: [], lower: [], bandwidth: [], percentB: [] };
   const upper = [], middle = [], lower = [], bandwidth = [], percentB = [];
   for (let i = period - 1; i < closes.length; i++) {
@@ -125,7 +125,7 @@ function bollingerBands(closes, period = 20, stdDev = 2) {
 /**
  * Simple volume average
  */
-function avgVolume(volumes, period = 20) {
+export function avgVolume(volumes, period = 20) {
   const slice = volumes.slice(-period);
   if (slice.length === 0) return 0;
   return slice.reduce((a, b) => a + b, 0) / slice.length;
@@ -134,7 +134,7 @@ function avgVolume(volumes, period = 20) {
 /**
  * Calculate momentum (rate of change)
  */
-function momentum(closes, period = 10) {
+export function momentum(closes, period = 10) {
   if (closes.length < period + 1) return [];
   return closes.slice(period).map((c, i) => ((c - closes[i]) / closes[i]) * 100);
 }
@@ -142,7 +142,7 @@ function momentum(closes, period = 10) {
 /**
  * Calculate Average True Range (ATR) for volatility measurement
  */
-function atr(bars, period = 14) {
+export function atr(bars, period = 14) {
   if (bars.length < 2) return [];
   const trValues = [];
   for (let i = 1; i < bars.length; i++) {
@@ -166,7 +166,7 @@ function atr(bars, period = 14) {
 /**
  * Simple VWAP approximation (volume-weighted average price)
  */
-function vwap(bars) {
+export function vwap(bars) {
   let cumVol = 0, cumTPV = 0;
   const result = [];
   for (const bar of bars) {
@@ -258,7 +258,7 @@ function obvDivergence(bars) {
 /**
  * Detect support/resistance levels from recent price action
  */
-function detectLevels(closes, lookback = 50, tolerance = 0.005) {
+export function detectLevels(closes, lookback = 50, tolerance = 0.005) {
   if (closes.length < lookback) return { support: [], resistance: [] };
   const recent = closes.slice(-lookback);
   const highs = [];
@@ -326,7 +326,7 @@ export function recordTradeOutcome(symbol, signalType, pnl) {
   adaptParameters();
 }
 
-function adaptParameters() {
+export function adaptParameters() {
   const recent = learningState.tradeHistory.slice(-50);
   if (recent.length < 10) return;
 
@@ -443,7 +443,7 @@ export const STOCK_UNIVERSE = [
  * Momentum strategy - rides trends with EMA, MACD, RSI
  * Primary strategy, generates the most signals
  */
-function momentumStrategy(bars, params) {
+export function momentumStrategy(bars, params) {
   if (!bars || bars.length < 30) {
     return { signal: "hold", strength: 0, reasons: ["Insufficient data"], strategy: "momentum" };
   }
@@ -580,7 +580,7 @@ function momentumStrategy(bars, params) {
  * Scalp strategy - fast signals on short timeframes
  * Looks for micro-trends, quick bounces from levels
  */
-function scalpStrategy(bars, params) {
+export function scalpStrategy(bars, params) {
   if (!bars || bars.length < 20) {
     return { signal: "hold", strength: 0, reasons: ["Insufficient data"], strategy: "scalp" };
   }
@@ -663,7 +663,7 @@ function scalpStrategy(bars, params) {
  * Mean-reversion strategy - buys oversold, sells overbought
  * Works in ranging/sideways markets
  */
-function meanReversionStrategy(bars, params) {
+export function meanReversionStrategy(bars, params) {
   if (!bars || bars.length < 30) {
     return { signal: "hold", strength: 0, reasons: ["Insufficient data"], strategy: "mean-reversion" };
   }

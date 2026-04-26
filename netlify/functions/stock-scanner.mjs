@@ -2,7 +2,7 @@
 // Identifies top gainers/losers for the trading bot to target
 // These can hit 2-8% daily moves more frequently than crypto in some cases
 
-import { getStockSnapshot, getStockBars, isMarketOpen } from "./lib/alpaca-client.mjs";
+const { getStockSnapshot, getStockBars, isMarketOpen } = require('./lib/alpaca-client.js');
 
 // Hot stock universe - high-volume, high-volatility tickers
 const STOCK_UNIVERSE = [

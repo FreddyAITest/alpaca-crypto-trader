@@ -3,7 +3,7 @@
 // Designed to be polled every 5 seconds with minimal overhead
 // Also supports SSE stream (?stream=true) for push-based updates
 
-import { getCryptoSnapshot, toDataSymbol } from "./lib/alpaca-client.mjs";
+import { getCryptoSnapshot, toDataSymbol } from './lib/alpaca-client.mjs';
 
 const TICKER_SYMBOLS = [
   "BTC/USD", "ETH/USD", "SOL/USD", "DOGE/USD",

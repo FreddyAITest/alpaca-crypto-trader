@@ -3,7 +3,7 @@
 // Uses RSI, MACD, volume spikes, volatility filters
 // Targets 2-8% daily profit candidates
 
-import { getCryptoBars, getCryptoSnapshot } from "./lib/alpaca-client.mjs";
+import { getCryptoBars, getCryptoSnapshot } from './lib/alpaca-client.mjs';
 
 // Technical indicator calculations
 function ema(data, period) {

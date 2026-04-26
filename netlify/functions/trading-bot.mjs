@@ -7,11 +7,11 @@
 // 5. Higher position sizes (5% from 3%)
 // Runs every 5 minutes, scans 60+ crypto pairs + stocks during market hours
 
-import { getAccount, getPositions, getPortfolioHistory, getCryptoBars, getCryptoSnapshot, getActivities, getStockSnapshot, isMarketOpen, toDataSymbol, toTradeSymbol } from "./lib/alpaca-client.mjs";
-import { RiskManager } from "./lib/risk-manager.mjs";
-import { analyzeSymbol, scanSymbols, scanMovers, scanStockMovers, WATCH_LIST, STOCK_UNIVERSE, recordTradeOutcome, getLearningState } from "./lib/strategy.mjs";
-import { executeBuy, liquidatePosition, executeSignal, executeStockSignal, closeWorstPositions, rotateStalePositions, rotateBottomPerformers, replaceStopsAndTargets, cancelSellOrders } from "./lib/executor.mjs";
-import { recordRun } from "./lib/health-store.mjs";
+import { getAccount, getPositions, getPortfolioHistory, getCryptoBars, getCryptoSnapshot, getActivities, getStockSnapshot, isMarketOpen, toDataSymbol, toTradeSymbol } from './lib/alpaca-client.mjs';
+import { RiskManager } from './lib/risk-manager.mjs';
+import { analyzeSymbol, scanSymbols, scanMovers, scanStockMovers, WATCH_LIST, STOCK_UNIVERSE, recordTradeOutcome, getLearningState } from './lib/strategy.mjs';
+import { executeBuy, liquidatePosition, executeSignal, executeStockSignal, closeWorstPositions, rotateStalePositions, rotateBottomPerformers, replaceStopsAndTargets, cancelSellOrders } from './lib/executor.mjs';
+import { recordRun } from './lib/health-store.mjs';
 
 // Bot state stored in memory (resets on cold start)
 let botState = {

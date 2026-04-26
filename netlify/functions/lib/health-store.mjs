@@ -2,7 +2,7 @@
 // Stores cron run history, consecutive errors, and last run time
 // Survives cold starts unlike in-memory botState
 
-import { getStore } from "@netlify/blobs";
+import { getStore } from '@netlify/blobs';
 
 const STORE_NAME = "bot-health";
 const KEY_HEALTH = "cron-health";

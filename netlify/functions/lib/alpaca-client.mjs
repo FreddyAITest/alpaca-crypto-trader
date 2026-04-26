@@ -149,4 +149,3 @@ export async function isMarketOpen() {
   return clock.is_open;
 }
 
-export { ALPACA_BASE, ALPACA_DATA_BASE, alpacaFetch };
