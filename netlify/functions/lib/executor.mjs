@@ -521,6 +521,7 @@ export async function executeSignal(signal, riskManager, equity, positions) {
 
   // Calculate stops
   let stopLoss, takeProfit;
+  const atrValue = signal.atrValue || 0;
 
   if (atrValue > 0) {
     const atrMult = signal.strategy === "scalp" ? 1.0 : 1.5; // Tighter stops for scalps
