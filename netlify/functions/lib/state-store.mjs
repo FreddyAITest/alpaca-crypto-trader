@@ -80,63 +80,36 @@ export async function saveBotState(state) {
 }
 
 // ============================
-// Learning State (Adaptive Parameters)
+// Learning State (DEF-13: Learning System with Rewards)
 // ============================
+// The learning state is now managed by learning-system.mjs.
+// This module handles persistence only.
 
-const DEFAULT_LEARNING_STATE = {
-  tradeHistory: [],
-  adaptiveParams: {
-    rsiOversold: 35,
-    rsiOverbought: 65,
-    signalThreshold: 0.22,
-    scalpThreshold: 0.15,
-    volumeMultiplier: 1.2,
-    emaFastPeriod: 8,
-    emaSlowPeriod: 21,
-    stochOverbought: 80,
-    stochOversold: 20,
-  },
-  winRate: 0.5,
-  totalWins: 0,
-  totalLosses: 0,
-  lastAdaptation: null,
-};
+import { createLearningState, serializeLearningState, deserializeLearningState, calculateReward, recordTradeOutcome } from "./learning-system.mjs";
 
 /**
  * Load learning state from persistent storage.
- * This replaces the in-memory learningState in strategy.mjs.
+ * Uses the new learning-system.mjs schema with strategies, symbols, regime tracking.
  */
 export async function loadLearningState() {
   try {
     const store = getStore(STORE_NAME);
     const raw = await store.get("learning-state", { type: "json" });
-    if (!raw) {
-      return { ...DEFAULT_LEARNING_STATE, adaptiveParams: { ...DEFAULT_LEARNING_STATE.adaptiveParams } };
-    }
-    // Deep merge to handle new adaptive params added in code updates
-    return {
-      ...DEFAULT_LEARNING_STATE,
-      ...raw,
-      adaptiveParams: { ...DEFAULT_LEARNING_STATE.adaptiveParams, ...(raw.adaptiveParams || {}) },
-    };
+    return deserializeLearningState(raw);
   } catch (e) {
     console.log(`StateStore: could not load learning state - ${e.message}`);
-    return { ...DEFAULT_LEARNING_STATE, adaptiveParams: { ...DEFAULT_LEARNING_STATE.adaptiveParams } };
+    return createLearningState();
   }
 }
 
 /**
  * Save learning state to persistent storage.
- * Called whenever trade outcomes are recorded or parameters are adapted.
+ * Uses serializeLearningState to trim unbounded arrays before storing.
  */
 export async function saveLearningState(state) {
   try {
     const store = getStore(STORE_NAME);
-    // Keep only last 500 trade history entries
-    const trimmed = {
-      ...state,
-      tradeHistory: (state.tradeHistory || []).slice(-500),
-    };
+    const trimmed = serializeLearningState(state);
     await store.setJSON("learning-state", trimmed);
     return true;
   } catch (e) {
@@ -145,22 +118,16 @@ export async function saveLearningState(state) {
   }
 }
 
-// ============================
-// State Rebuild from Alpaca API
-// ============================
-
 /**
  * Rebuild learning state from Alpaca trade activities.
- * This is the recovery mechanism: if persistent state is missing or stale,
- * we can reconstruct win/loss counts and recent trade history from the
- * Alpaca activities API, which is the authoritative source of truth.
+ * Uses the new reward function to score historical trades.
  *
  * @param {Function} getActivities - Alpaca activities fetcher
  * @param {number} daysBack - How many days of history to rebuild (default 7)
  * @returns {Object} Rebuilt learning state
  */
 export async function rebuildLearningFromAPI(getActivities, daysBack = 7) {
-  const state = { ...DEFAULT_LEARNING_STATE, adaptiveParams: { ...DEFAULT_LEARNING_STATE.adaptiveParams } };
+  const state = createLearningState();
 
   try {
     const after = new Date(Date.now() - daysBack * 86400000).toISOString();
@@ -171,67 +138,39 @@ export async function rebuildLearningFromAPI(getActivities, daysBack = 7) {
       return state;
     }
 
-    let wins = 0;
-    let losses = 0;
-    const tradeHistory = [];
+    let processedCount = 0;
 
     for (const act of activities) {
       if (act.side === "sell" && parseFloat(act.net_amount || 0) !== 0) {
         const pnl = parseFloat(act.net_amount || 0);
-        if (pnl > 0) wins++;
-        else losses++;
+        const qty = parseFloat(act.qty || 0);
+        const price = parseFloat(act.price || 0);
 
-        tradeHistory.push({
+        // Estimate pnlPct from net_amount and qty*price if possible
+        const tradeValue = qty * price;
+        const pnlPct = tradeValue > 0 ? pnl / (tradeValue - pnl) : 0;
+
+        // Rebuild using the new reward-based learning
+        recordTradeOutcome(state, {
           symbol: act.symbol || "unknown",
-          signal: "sell_close",
+          strategy: "momentum", // Default for historical rebuild (actual strategy unknown)
           pnl,
+          pnlPct,
+          holdingPeriodMins: 60, // Conservative estimate for historical data
+          atrPctAtEntry: 2,       // Default ATR% assumption
           timestamp: new Date(act.transaction_time || act.timestamp || Date.now()).getTime(),
         });
+
+        processedCount++;
       }
     }
 
-    state.totalWins = wins;
-    state.totalLosses = losses;
-    state.winRate = (wins + losses) > 0 ? wins / (wins + losses) : 0.5;
-    state.tradeHistory = tradeHistory.slice(-500);
-    state.lastAdaptation = new Date().toISOString();
-
-    // Adapt parameters based on rebuilt win rate
-    adaptParametersFromState(state);
-
-    console.log(`StateStore: rebuilt learning state from API - ${wins}W/${losses}L, winRate=${state.winRate.toFixed(2)}`);
+    console.log(`StateStore: rebuilt learning state from API with rewards - ${processedCount} trades processed, WR=${(state.winRate * 100).toFixed(1)}%`);
   } catch (e) {
     console.log(`StateStore: rebuild from API failed - ${e.message}`);
   }
 
   return state;
-}
-
-/**
- * Adapt parameters based on current win rate.
- * Extracted from strategy.mjs to work on a state object.
- */
-function adaptParametersFromState(state) {
-  const recent = state.tradeHistory.slice(-50);
-  if (recent.length < 10) return;
-
-  const recentWins = recent.filter(t => t.pnl > 0).length;
-  const recentWinRate = recentWins / recent.length;
-  const params = state.adaptiveParams;
-
-  if (recentWinRate > 0.6) {
-    params.signalThreshold = Math.max(0.12, params.signalThreshold - 0.015);
-    params.scalpThreshold = Math.max(0.08, params.scalpThreshold - 0.01);
-    params.rsiOversold = Math.min(42, params.rsiOversold + 1);
-    params.rsiOverbought = Math.max(58, params.rsiOverbought - 1);
-  } else if (recentWinRate < 0.4) {
-    params.signalThreshold = Math.min(0.4, params.signalThreshold + 0.02);
-    params.scalpThreshold = Math.min(0.25, params.scalpThreshold + 0.015);
-    params.rsiOversold = Math.max(25, params.rsiOversold - 1);
-    params.rsiOverbought = Math.min(75, params.rsiOverbought + 1);
-  }
-
-  state.lastAdaptation = new Date().toISOString();
 }
 
 // ============================

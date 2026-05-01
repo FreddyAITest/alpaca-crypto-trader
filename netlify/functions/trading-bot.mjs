@@ -9,7 +9,8 @@
 
 import { getAccount, getPositions, getPortfolioHistory, getCryptoBars, getCryptoSnapshot, getActivities, getStockSnapshot, isMarketOpen, toDataSymbol, toTradeSymbol } from './lib/alpaca-client.mjs';
 import { RiskManager } from './lib/risk-manager.mjs';
-import { analyzeSymbol, scanSymbols, scanMovers, scanStockMovers, WATCH_LIST, STOCK_UNIVERSE, recordTradeOutcome, getLearningState } from './lib/strategy.mjs';
+import { analyzeSymbol, scanSymbols, scanMovers, scanStockMovers, WATCH_LIST, STOCK_UNIVERSE } from './lib/strategy.mjs';
+import { createLearningState, updateMarketRegime, filterSignals, getLearningSummary, recordTradeOutcome } from './lib/learning-system.mjs';
 import { executeBuy, liquidatePosition, executeSignal, executeStockSignal, closeWorstPositions, rotateStalePositions, rotateBottomPerformers, replaceStopsAndTargets, cancelSellOrders } from './lib/executor.mjs';
 import { recordRun } from './lib/health-store.mjs';
 
@@ -23,6 +24,9 @@ let botState = {
   dailyTradeCount: 0,
   dailyResetDate: null,
 };
+
+// DEF-13: Learning state (in-memory for v4, no persistence)
+let learningState = createLearningState();
 
 export default async (req) => {
   const runStart = new Date().toISOString();
@@ -66,11 +70,25 @@ export default async (req) => {
         let learnedCount = 0;
         for (const act of activities.slice(0, 100)) {
           if (act.side === "sell" && parseFloat(act.net_amount || 0) !== 0) {
-            recordTradeOutcome(act.symbol || "unknown", "sell_close", parseFloat(act.net_amount || 0));
+            const pnl = parseFloat(act.net_amount || 0);
+            const qty = parseFloat(act.qty || 0);
+            const price = parseFloat(act.price || 0);
+            const tradeValue = qty * price;
+            const pnlPct = tradeValue > 0 ? pnl / (tradeValue - pnl) : 0;
+
+            recordTradeOutcome(learningState, {
+              symbol: act.symbol || "unknown",
+              strategy: "momentum",
+              pnl,
+              pnlPct,
+              holdingPeriodMins: 60,
+              atrPctAtEntry: 2,
+              timestamp: new Date(act.transaction_time || act.timestamp || Date.now()).getTime(),
+            });
             learnedCount++;
           }
         }
-        log(`Learning: processed ${activities.length} activities, learned from ${learnedCount} sells`);
+        log(`Learning: processed ${activities.length} activities, learned from ${learnedCount} sells with rewards`);
       }
     } catch (e) {
       log(`Learning: could not fetch activities - ${e.message}`);
@@ -305,14 +323,19 @@ export default async (req) => {
         log(`[CRYPTO] Got ${pricesFromBars} additional prices from bar data`);
       }
 
+      // DEF-13: Update market regime
+      updateMarketRegime(learningState, barsBySymbol);
+      log(`[CRYPTO] Market regime: ${learningState.currentRegime}`);
+
       // Scan for signals using multi-strategy, multi-timeframe analysis
-      const signals = scanSymbols(barsBySymbol, bars15MBySymbol, bars5MBySymbol);
+      const rawSignals = scanSymbols(barsBySymbol, bars15MBySymbol, bars5MBySymbol, learningState.adaptiveParams);
+      const signals = filterSignals(learningState, rawSignals);
       signalsFound = signals.length;
-      log(`[CRYPTO] Signals found: ${signalsFound}`);
+      log(`[CRYPTO] Signals found: ${rawSignals.length} raw → ${signalsFound} after learning filter`);
       
       // Execute signals - go through ALL signals (not just top 3)
       for (const signal of signals) {
-        log(`  [CRYPTO] ${signal.symbol}: ${signal.signal.toUpperCase()} str=${(signal.strength * 100).toFixed(0)}% [${signal.strategy}${signal.confirmed ? " confirmed" : ""}] - ${signal.reasons.slice(0, 3).join(", ")}`);
+        log(`  [CRYPTO] ${signal.symbol}: ${signal.signal.toUpperCase()} str=${(signal.adjustedStrength * 100).toFixed(0)}% (raw=${(signal.strength * 100).toFixed(0)}%) [${signal.strategy}${signal.confirmed ? " confirmed" : ""}] - ${signal.reasons.slice(0, 3).join(", ")}`);
         
         const tradeSym = toTradeSymbol(signal.symbol);
         const dataSym = toDataSymbol(signal.symbol);
@@ -372,7 +395,7 @@ export default async (req) => {
 
     // 8. Build risk summary and learning state
     const riskSummary = riskManager.getRiskSummary(account, currentPositions);
-    const learningInfo = getLearningState();
+    const learningInfo = getLearningSummary(learningState);
 
     botState.lastRun = runStart;
     botState.runHistory.push({
@@ -407,12 +430,14 @@ export default async (req) => {
         message: a.result?.message,
       })),
       learning: {
-        winRate: learningInfo.winRate.toFixed(2),
-        totalWins: learningInfo.totalWins,
-        totalLosses: learningInfo.totalLosses,
+        totalTrades: learningInfo.totalTrades,
+        winRate: typeof learningInfo.winRate === 'number' ? learningInfo.winRate.toFixed(2) : learningInfo.winRate,
+        averageReward: learningInfo.averageReward?.toFixed(3),
+        currentRegime: learningInfo.currentRegime,
+        strategyConfidence: learningInfo.strategies,
+        blacklistedCount: learningInfo.blacklistedCount,
         adaptiveParams: learningInfo.adaptiveParams,
         lastAdaptation: learningInfo.lastAdaptation,
-        recentTrades: learningInfo.tradeHistory.length,
       },
       logs: logs.slice(-40),
       botState: {

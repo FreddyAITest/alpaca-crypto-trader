@@ -52,6 +52,13 @@
   status = 200
   force = true
 
+# Learning system status (DEF-13)
+[[redirects]]
+  from = "/api/learning-status"
+  to = "/.netlify/functions/learning-status"
+  status = 200
+  force = true
+
 # Live prices endpoint (lightweight, for ticker polling)
 [[redirects]]
   from = "/api/live-prices"

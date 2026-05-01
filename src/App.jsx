@@ -17,6 +17,7 @@ import CryptoTicker from './components/CryptoTicker';
 import RiskDashboard from './components/RiskDashboard';
 import TradeAlerts from './components/TradeAlerts';
 import DailyPnLTarget from './components/DailyPnLTarget';
+import LearningDashboard from './components/LearningDashboard';
 
 function ThemeToggle({ theme, toggleTheme }) {
   return (
@@ -328,6 +329,7 @@ function App() {
           <div className="max-w-2xl mx-auto space-y-6">
             <h2 className="text-lg font-semibold text-[var(--text-primary)]">🤖 Automated Trading Bot</h2>
             <BotStatus />
+            <LearningDashboard />
           </div>
         )}
 

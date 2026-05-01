@@ -180,3 +180,9 @@ export async function fetchAnalytics() {
   if (!res.ok) throw new Error(`Analytics fetch failed: ${res.status}`);
   return res.json();
 }
+
+export async function fetchLearningStatus() {
+  const res = await fetch(`${API_BASE}/learning-status`, { headers: HEADERS });
+  if (!res.ok) throw new Error(`Learning status failed: ${res.status}`);
+  return res.json();
+}

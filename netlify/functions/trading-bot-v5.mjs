@@ -11,7 +11,8 @@
 
 import { getAccount, getPositions, getPortfolioHistory, getCryptoBars, getCryptoSnapshot, getActivities, getStockSnapshot, isMarketOpen, toDataSymbol, toTradeSymbol } from "./lib/alpaca-client.mjs";
 import { RiskManager } from "./lib/risk-manager.mjs";
-import { analyzeSymbol, scanSymbols, scanMovers, scanStockMovers, WATCH_LIST, STOCK_UNIVERSE, setLearningState, getLearningState } from "./lib/strategy.mjs";
+import { analyzeSymbol, scanSymbols, scanMovers, scanStockMovers, WATCH_LIST, STOCK_UNIVERSE } from "./lib/strategy.mjs";
+import { updateMarketRegime, filterSignals, getLearningSummary, recordTradeOutcome } from "./lib/learning-system.mjs";
 import { executeBuy, liquidatePosition, executeSignal, executeStockSignal, closeWorstPositions, rotateStalePositions, rotateBottomPerformers, replaceStopsAndTargets, cancelSellOrders } from "./lib/executor.mjs";
 import { recordRun } from "./lib/health-store.mjs";
 import { loadBotState, saveBotState, loadLearningState, saveLearningState, rebuildLearningFromAPI, savePositionSnapshot } from "./lib/state-store.mjs";
@@ -60,9 +61,9 @@ export default async (req) => {
       }
     }
 
-    // Inject learning state into strategy module for this run
-    setLearningState(learningState);
-    log(`[STATE] Injected learning state into strategy module`);
+    // DEF-13: Learning system is now self-contained in learningState.
+    // Adaptive params are passed directly to strategy functions, not injected into module state.
+    log(`[STATE] Loaded learning state v2: ${learningState.totalTrades} trades, WR=${(learningState.winRate * 100).toFixed(1)}%, regime=${learningState.currentRegime}`);
 
     // Reset daily trade counter at midnight
     const today = new Date().toISOString().slice(0, 10);
@@ -87,19 +88,32 @@ export default async (req) => {
     // Save position snapshot for change detection
     await savePositionSnapshot(positions);
 
-    // 3. Learn from recent trade outcomes — UPDATE persistent learning state
+    // 3. Learn from recent trade outcomes — DEF-13: reward-based learning
     try {
       const activities = await getActivities(new Date(Date.now() - 86400000).toISOString());
       if (Array.isArray(activities)) {
         let learnedCount = 0;
         for (const act of activities.slice(0, 100)) {
           if (act.side === "sell" && parseFloat(act.net_amount || 0) !== 0) {
-            recordTradeOutcomePersistent(act.symbol || "unknown", "sell_close", parseFloat(act.net_amount || 0), learningState);
+            const pnl = parseFloat(act.net_amount || 0);
+            const qty = parseFloat(act.qty || 0);
+            const price = parseFloat(act.price || 0);
+            const tradeValue = qty * price;
+            const pnlPct = tradeValue > 0 ? pnl / (tradeValue - pnl) : 0;
+
+            recordTradeOutcome(learningState, {
+              symbol: act.symbol || "unknown",
+              strategy: "momentum",
+              pnl,
+              pnlPct,
+              holdingPeriodMins: 60,
+              atrPctAtEntry: 2,
+              timestamp: new Date(act.transaction_time || act.timestamp || Date.now()).getTime(),
+            });
             learnedCount++;
           }
         }
-        log(`Learning: processed ${activities.length} activities, learned from ${learnedCount} sells`);
-        // Save updated learning state to persistent storage
+        log(`Learning: processed ${activities.length} activities, learned from ${learnedCount} sells with reward scoring`);
         await saveLearningState(learningState);
       }
     } catch (e) {
@@ -346,14 +360,19 @@ export default async (req) => {
         log(`[CRYPTO] Got ${pricesFromBars} additional prices from bar data`);
       }
 
+      // DEF-13: Update market regime from top symbols
+      updateMarketRegime(learningState, barsBySymbol);
+      log(`[CRYPTO] Market regime: ${learningState.currentRegime}`);
+
       // Scan for signals using multi-strategy, multi-timeframe analysis
-      const signals = scanSymbols(barsBySymbol, bars15MBySymbol, bars5MBySymbol);
+      const rawSignals = scanSymbols(barsBySymbol, bars15MBySymbol, bars5MBySymbol, learningState.adaptiveParams);
+      const signals = filterSignals(learningState, rawSignals);
       signalsFound = signals.length;
-      log(`[CRYPTO] Signals found: ${signalsFound}`);
+      log(`[CRYPTO] Signals found: ${rawSignals.length} raw → ${signalsFound} after learning filter`);
       
       // Execute signals
       for (const signal of signals) {
-        log(`  [CRYPTO] ${signal.symbol}: ${signal.signal.toUpperCase()} str=${(signal.strength * 100).toFixed(0)}% [${signal.strategy}${signal.confirmed ? " confirmed" : ""}] - ${signal.reasons.slice(0, 3).join(", ")}`);
+        log(`  [CRYPTO] ${signal.symbol}: ${signal.signal.toUpperCase()} str=${(signal.adjustedStrength * 100).toFixed(0)}% (raw=${(signal.strength * 100).toFixed(0)}%) [${signal.strategy}${signal.confirmed ? " confirmed" : ""}] sc=${(signal.strategyConfidence * 100).toFixed(0)}% - ${signal.reasons.slice(0, 3).join(", ")}`);
         
         const tradeSym = toTradeSymbol(signal.symbol);
         const dataSym = toDataSymbol(signal.symbol);
@@ -412,7 +431,7 @@ export default async (req) => {
 
     // 8. Build risk summary and learning state
     const riskSummary = riskManager.getRiskSummary(account, currentPositions);
-    const learningInfo = getLearningState();
+    const learningInfo = getLearningSummary(learningState);
 
     botState.lastRun = runStart;
     botState.runHistory.push({
@@ -455,12 +474,18 @@ export default async (req) => {
         message: a.result?.message,
       })),
       learning: {
-        winRate: learningInfo.winRate.toFixed(2),
-        totalWins: learningInfo.totalWins,
-        totalLosses: learningInfo.totalLosses,
+        totalTrades: learningInfo.totalTrades,
+        winRate: typeof learningInfo.winRate === 'number' ? learningInfo.winRate.toFixed(2) : learningInfo.winRate,
+        averageReward: learningInfo.averageReward?.toFixed(3),
+        currentRegime: learningInfo.currentRegime,
+        adaptationGeneration: learningInfo.adaptationGeneration,
+        explorationRate: learningInfo.explorationRate,
+        strategyConfidence: learningInfo.strategies,
+        strategyWeights: learningInfo.strategyWeights,
+        topSymbols: learningInfo.topSymbols,
+        blacklistedCount: learningInfo.blacklistedCount,
         adaptiveParams: learningInfo.adaptiveParams,
         lastAdaptation: learningInfo.lastAdaptation,
-        recentTrades: learningInfo.tradeHistory.length,
         persisted: true,
       },
       logs: logs.slice(-40),
@@ -511,50 +536,11 @@ export default async (req) => {
 };
 
 // ============================================================
-// Learning State Bridge
-// strategy.mjs uses module-level learningState. In v5:
-// - We load learning state from Netlify Blobs at startup
-// - We inject it into the strategy module via setLearningState()
-// - During the run, recordTradeOutcome() in strategy.mjs updates the module-level state
-// - We capture the final state via getLearningState() and save back to Blobs
-// - Our persistent recordTradeOutcomePersistent() is used for the API-sourced learning
-//   data (step 3), which also adapts params independently
+// DEF-13: Learning System with Rewards
+// The learning state is managed by learning-system.mjs.
+// - Loaded from Netlify Blobs at startup via loadLearningState()
+// - Trade outcomes are recorded via recordTradeOutcome() from learning-system.mjs
+// - Adaptive params are passed to strategy functions directly
+// - getLearningSummary() provides the dashboard-ready summary
+// - Saved back to Blobs via saveLearningState()
 // ============================================================
-
-/**
- * Record a trade outcome in our persistent learning state.
- * This is the persistent companion to strategy.mjs's recordTradeOutcome.
- */
-function recordTradeOutcomePersistent(symbol, signalType, pnl, learningState) {
-  learningState.tradeHistory.push({
-    symbol,
-    signal: signalType,
-    pnl,
-    timestamp: Date.now(),
-  });
-  learningState.tradeHistory = learningState.tradeHistory.slice(-500);
-  if (pnl > 0) learningState.totalWins++;
-  else learningState.totalLosses++;
-  learningState.winRate = learningState.totalWins / (learningState.totalWins + learningState.totalLosses);
-  
-  // Adapt parameters based on recent performance
-  const recent = learningState.tradeHistory.slice(-50);
-  if (recent.length >= 10) {
-    const recentWins = recent.filter(t => t.pnl > 0).length;
-    const recentWinRate = recentWins / recent.length;
-    
-    if (recentWinRate > 0.6) {
-      learningState.adaptiveParams.signalThreshold = Math.max(0.12, learningState.adaptiveParams.signalThreshold - 0.015);
-      learningState.adaptiveParams.scalpThreshold = Math.max(0.08, learningState.adaptiveParams.scalpThreshold - 0.01);
-      learningState.adaptiveParams.rsiOversold = Math.min(42, learningState.adaptiveParams.rsiOversold + 1);
-      learningState.adaptiveParams.rsiOverbought = Math.max(58, learningState.adaptiveParams.rsiOverbought - 1);
-    } else if (recentWinRate < 0.4) {
-      learningState.adaptiveParams.signalThreshold = Math.min(0.4, learningState.adaptiveParams.signalThreshold + 0.02);
-      learningState.adaptiveParams.scalpThreshold = Math.min(0.25, learningState.adaptiveParams.scalpThreshold + 0.015);
-      learningState.adaptiveParams.rsiOversold = Math.max(25, learningState.adaptiveParams.rsiOversold - 1);
-      learningState.adaptiveParams.rsiOverbought = Math.min(75, learningState.adaptiveParams.rsiOverbought + 1);
-    }
-    
-    learningState.lastAdaptation = new Date().toISOString();
-  }
-}

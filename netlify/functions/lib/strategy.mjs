@@ -290,82 +290,23 @@ export function detectLevels(closes, lookback = 50, tolerance = 0.005) {
 }
 
 // =============================================
-// ADAPTIVE LEARNING PARAMETERS
+// DEFAULT STRATEGY PARAMETERS
 // =============================================
+// These are defaults only. The learning system (learning-system.mjs)
+// manages the adaptive parameters and injects them into strategy functions.
+// strategy.mjs no longer holds mutable module-level state.
 
-let learningState = {
-  tradeHistory: [],
-  adaptiveParams: {
-    rsiOversold: 40,       // Wider to catch more oversold signals (v6: from 38)
-    rsiOverbought: 60,     // Wider to catch more overbought signals (v6: from 62)
-    signalThreshold: 0.14, // LOWER = MORE TRADES (v6: lowered from 0.18)
-    scalpThreshold: 0.08,  // Even lower scalp threshold (v6: from 0.10)
-    volumeMultiplier: 0.8, // Even lower volume requirement = more signals (v6: from 1.0)
-    emaFastPeriod: 8,
-    emaSlowPeriod: 21,
-    stochOverbought: 80,
-    stochOversold: 20,
-  },
-  winRate: 0.5,
-  totalWins: 0,
-  totalLosses: 0,
-  lastAdaptation: null,
+export const DEFAULT_PARAMS = {
+  rsiOversold: 40,
+  rsiOverbought: 60,
+  signalThreshold: 0.14,
+  scalpThreshold: 0.08,
+  volumeMultiplier: 0.8,
+  emaFastPeriod: 8,
+  emaSlowPeriod: 21,
+  stochOverbought: 80,
+  stochOversold: 20,
 };
-
-export function recordTradeOutcome(symbol, signalType, pnl) {
-  learningState.tradeHistory.push({
-    symbol,
-    signal: signalType,
-    pnl,
-    timestamp: Date.now(),
-  });
-  learningState.tradeHistory = learningState.tradeHistory.slice(-500);
-  if (pnl > 0) learningState.totalWins++;
-  else learningState.totalLosses++;
-  learningState.winRate = learningState.totalWins / (learningState.totalWins + learningState.totalLosses);
-  adaptParameters();
-}
-
-export function adaptParameters() {
-  const recent = learningState.tradeHistory.slice(-50);
-  if (recent.length < 10) return;
-
-  const recentWins = recent.filter(t => t.pnl > 0).length;
-  const recentWinRate = recentWins / recent.length;
-
-  // More aggressive adaptation ranges
-  if (recentWinRate > 0.6) {
-    learningState.adaptiveParams.signalThreshold = Math.max(0.12, learningState.adaptiveParams.signalThreshold - 0.015);
-    learningState.adaptiveParams.scalpThreshold = Math.max(0.08, learningState.adaptiveParams.scalpThreshold - 0.01);
-    learningState.adaptiveParams.rsiOversold = Math.min(42, learningState.adaptiveParams.rsiOversold + 1);
-    learningState.adaptiveParams.rsiOverbought = Math.max(58, learningState.adaptiveParams.rsiOverbought - 1);
-  } else if (recentWinRate < 0.4) {
-    learningState.adaptiveParams.signalThreshold = Math.min(0.4, learningState.adaptiveParams.signalThreshold + 0.02);
-    learningState.adaptiveParams.scalpThreshold = Math.min(0.25, learningState.adaptiveParams.scalpThreshold + 0.015);
-    learningState.adaptiveParams.rsiOversold = Math.max(25, learningState.adaptiveParams.rsiOversold - 1);
-    learningState.adaptiveParams.rsiOverbought = Math.min(75, learningState.adaptiveParams.rsiOverbought + 1);
-  }
-
-  learningState.lastAdaptation = new Date().toISOString();
-}
-
-export function getLearningState() {
-  return { ...learningState, tradeHistory: learningState.tradeHistory.slice(-20) };
-}
-
-/**
- * Set the entire learning state from external persistent storage.
- * Used by trading-bot v5 to restore state after cold starts.
- */
-export function setLearningState(state) {
-  if (!state) return;
-  learningState.tradeHistory = state.tradeHistory || learningState.tradeHistory;
-  learningState.adaptiveParams = { ...learningState.adaptiveParams, ...(state.adaptiveParams || {}) };
-  learningState.winRate = state.winRate ?? learningState.winRate;
-  learningState.totalWins = state.totalWins ?? learningState.totalWins;
-  learningState.totalLosses = state.totalLosses ?? learningState.totalLosses;
-  learningState.lastAdaptation = state.lastAdaptation ?? learningState.lastAdaptation;
-}
 
 // =============================================
 // EXPANDED WATCH LIST - 60+ CRYPTO PAIRS
@@ -767,7 +708,7 @@ export function analyzeSymbol(bars, customParams = null) {
     return { signal: "hold", strength: 0, reasons: ["Insufficient data"], indicators: {}, strategy: "none" };
   }
 
-  const params = customParams || learningState.adaptiveParams;
+  const params = customParams || DEFAULT_PARAMS;
 
   // Run all 3 strategies
   const momentum = momentumStrategy(bars, params);
@@ -823,14 +764,14 @@ export function analyzeSymbol(bars, customParams = null) {
  * Multi-timeframe analysis - combines signals from different timeframes
  * Primary (1H) + Fast (15M) for entry timing
  */
-export function analyzeMultiTimeframe(bars1H, bars15M) {
-  const primary = analyzeSymbol(bars1H);
+export function analyzeMultiTimeframe(bars1H, bars15M, customParams = null) {
+  const primary = analyzeSymbol(bars1H, customParams);
 
   if (!bars15M || bars15M.length < 20) {
     return { ...primary, timeframe: "1H only", confirmed: false };
   }
 
-  const fast = analyzeSymbol(bars15M);
+  const fast = analyzeSymbol(bars15M, customParams);
 
   let confirmed = false;
   let finalStrength = primary.strength;
@@ -865,24 +806,25 @@ export function analyzeMultiTimeframe(bars1H, bars15M) {
  * Scan multiple symbols and return actionable signals
  * Now also runs 5M timeframe analysis for scalp signals
  */
-export function scanSymbols(barsBySymbol, bars15MBySymbol = {}, bars5MBySymbol = {}) {
+export function scanSymbols(barsBySymbol, bars15MBySymbol = {}, bars5MBySymbol = {}, adaptiveParams = null) {
+  const params = adaptiveParams || DEFAULT_PARAMS;
   const signals = [];
   for (const [symbol, bars] of Object.entries(barsBySymbol)) {
     const bars15M = bars15MBySymbol[symbol];
     const bars5M = bars5MBySymbol[symbol];
-    
+
     // Primary analysis with multi-timeframe
     let analysis;
     if (bars15M) {
-      analysis = analyzeMultiTimeframe(bars, bars15M);
+      analysis = analyzeMultiTimeframe(bars, bars15M, params);
     } else {
-      analysis = analyzeSymbol(bars);
+      analysis = analyzeSymbol(bars, params);
     }
 
     // Also check 5M for scalp confirmation
     if (bars5M && analysis.signal === "hold") {
-      const scalpCheck = scalpStrategy(bars5M, learningState.adaptiveParams);
-      if (scalpCheck.signal !== "hold" && scalpCheck.strength >= (learningState.adaptiveParams.scalpThreshold || 0.15)) {
+      const scalpCheck = scalpStrategy(bars5M, params);
+      if (scalpCheck.signal !== "hold" && scalpCheck.strength >= (params.scalpThreshold || 0.15)) {
         analysis = { ...scalpCheck, symbol, timeframe: "5M-scalp" };
       }
     }
