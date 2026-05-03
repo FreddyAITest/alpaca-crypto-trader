@@ -602,8 +602,9 @@ export async function executeStockSignal(signal, riskManager, equity, positions)
 }
 
 /**
- * Force-close losing positions
- * v4: More aggressive — close anything down 1.5%+ to increase velocity
+ * Force-close losing positions.
+ * liquidatePosition handles settlement checks (cancels SL orders, tries
+ * closePosition, falls back to selling available qty). No need to pre-filter.
  */
 export async function closeWorstPositions(positions, maxLossPct = 0.015) {
   const closed = [];
@@ -612,14 +613,6 @@ export async function closeWorstPositions(positions, maxLossPct = 0.015) {
     const current = parseFloat(pos.current_price);
     const pnlPct = (current - entry) / entry;
     if (pnlPct <= -maxLossPct) {
-      // v6: Skip crypto positions that are mostly unsettled (qty_available / qty < 10%)
-      // These can't be sold and will just generate useless dust orders
-      const qty = parseFloat(pos.qty);
-      const qtyAvailable = parseFloat(pos.qty_available || qty); // qty_available from Alpaca
-      const isCrypto = pos.asset_class === "crypto" || pos.symbol.includes("USD") || pos.symbol.includes("/");
-      if (isCrypto && qty > 0 && qtyAvailable / qty < 0.10) {
-        continue; // Skip — not enough settled qty to sell meaningfully
-      }
       const result = await liquidatePosition(pos.symbol);
       closed.push({ symbol: pos.symbol, pnl: pnlPct, result });
     }
@@ -628,9 +621,8 @@ export async function closeWorstPositions(positions, maxLossPct = 0.015) {
 }
 
 /**
- * Rotate positions — aggressively close underperforming and stagnant positions
- * v4: Much more aggressive than v3 — closes positions that haven't moved enough
- * to free up capital for new, better opportunities
+ * Rotate positions — close underperforming and stagnant positions to free capital.
+ * liquidatePosition handles settlement (cancels SL orders, tries to sell).
  */
 export async function rotateStalePositions(positions, equity = 100000) {
   const closed = [];
@@ -641,28 +633,18 @@ export async function rotateStalePositions(positions, equity = 100000) {
     const current = parseFloat(pos.current_price);
     const pnlPct = (current - entry) / entry;
     const marketValue = parseFloat(pos.market_value || 0);
-    const exposurePct = totalExposure > 0 ? (marketValue / totalExposure) * 100 : 0;
 
-    // v6: Skip crypto positions that are mostly unsettled
-    const qty = parseFloat(pos.qty);
-    const qtyAvailable = parseFloat(pos.qty_available || qty);
-    const isCrypto = pos.asset_class === "crypto" || pos.symbol.includes("USD") || pos.symbol.includes("/");
-    if (isCrypto && qty > 0 && qtyAvailable / qty < 0.10) {
-      continue; // Skip — can't sell settled portion meaningfully
-    }
-
-    // ROTATION CRITERIA (more aggressive than v3):
-    // 1. Small positions under $400 that are flat (neither winning nor losing much)
+    // 1. Small positions under $400 that are flat
     if (marketValue < 400 && Math.abs(pnlPct) < 0.01) {
       const result = await liquidatePosition(pos.symbol);
       closed.push({ symbol: pos.symbol, pnl: pnlPct, reason: "Too small, rotating", result });
     }
-    // 2. Positions losing between 0.5-1.5% (not bad enough for stop-loss, but stagnant)
+    // 2. Positions losing 0.5-1.5% (stagnant but not SL territory)
     else if (pnlPct < -0.005 && pnlPct > -0.03) {
       const result = await liquidatePosition(pos.symbol);
       closed.push({ symbol: pos.symbol, pnl: pnlPct, reason: `Stagnant loss ${((pnlPct * 100).toFixed(1))}%`, result });
     }
-    // 3. Positions barely positive (< +0.5%) after holding, taking small profit for velocity
+    // 3. Positions barely positive after holding, take profit for velocity
     else if (pnlPct > 0 && pnlPct < 0.005 && marketValue < equity * 0.02) {
       const result = await liquidatePosition(pos.symbol);
       closed.push({ symbol: pos.symbol, pnl: pnlPct, reason: `Small gain ${((pnlPct * 100).toFixed(1))}%, rotating`, result });
@@ -710,29 +692,18 @@ export async function cancelStaleOrders(maxAgeHours = 8) {
 export async function rotateBottomPerformers(positions, count = 2) {
   const closed = [];
 
-  // Sort by P&L percent, worst first
   const sorted = [...(positions || [])].sort((a, b) => {
     const pnlA = (parseFloat(a.current_price) - parseFloat(a.avg_entry_price)) / parseFloat(a.avg_entry_price);
     const pnlB = (parseFloat(b.current_price) - parseFloat(b.avg_entry_price)) / parseFloat(b.avg_entry_price);
     return pnlA - pnlB;
   });
 
-  // Close bottom N losers (skipping those that hit the stop-loss threshold,
-  // which will be handled by closeWorstPositions)
   for (const pos of sorted.slice(0, count)) {
     const entry = parseFloat(pos.avg_entry_price);
     const current = parseFloat(pos.current_price);
     const pnlPct = (current - entry) / entry;
 
-    // v6: Skip crypto positions that are mostly unsettled
-    const qty = parseFloat(pos.qty);
-    const qtyAvailable = parseFloat(pos.qty_available || qty);
-    const isCrypto = pos.asset_class === "crypto" || pos.symbol.includes("USD") || pos.symbol.includes("/");
-    if (isCrypto && qty > 0 && qtyAvailable / qty < 0.10) {
-      continue; // Skip — can't sell settled portion meaningfully
-    }
-
-    // Only rotate if losing more than 0.3% (don't close tiny losses)
+    // Only rotate if losing more than 0.3%
     if (pnlPct < -0.003) {
       const result = await liquidatePosition(pos.symbol);
       closed.push({ symbol: pos.symbol, pnl: pnlPct, reason: `Bottom performer ${((pnlPct * 100).toFixed(1))}%`, result });

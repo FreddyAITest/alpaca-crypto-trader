@@ -126,22 +126,8 @@ export default async (req) => {
     }
 
     // 7. Check stop-loss / take-profit on existing positions
-    // v6: Skip crypto positions that are mostly unsettled (qty_available ≈ 0)
-    const slTpActions = riskManager.checkStopLossTakeProfit(positions)
-      .filter(action => {
-        // Find the position for this action
-        const pos = positions.find(p => p.symbol === action.symbol);
-        if (pos) {
-          const qty = parseFloat(pos.qty);
-          const qtyAvailable = parseFloat(pos.qty_available ?? qty);
-          const isCrypto = pos.asset_class === "crypto" || pos.symbol.includes("USD") || pos.symbol.includes("/");
-          if (isCrypto && qty > 0 && qtyAvailable / qty < 0.10) {
-            log(`STOP-LOSS/TAKE-PROFIT: SKIPPED ${action.symbol} - only ${(qtyAvailable / qty * 100).toFixed(1)}% settled`);
-            return false;
-          }
-        }
-        return true;
-      });
+    // liquidatePosition handles settlement (cancels SL orders, tries closePosition).
+    const slTpActions = riskManager.checkStopLossTakeProfit(positions);
     for (const action of slTpActions) {
       log(`STOP-LOSS/TAKE-PROFIT: ${action.symbol} - ${action.reason}`);
       const posForLearning = positions.find(p => p.symbol === action.symbol);
