@@ -9,13 +9,13 @@
 // Runs every 5 minutes via Netlify scheduled function
 // Scans 60+ crypto pairs + stocks during market hours
 
-import { getAccount, getPositions, getPortfolioHistory, getCryptoBars, getCryptoSnapshot, getActivities, getStockSnapshot, isMarketOpen, toDataSymbol, toTradeSymbol } from "./lib/alpaca-client.mjs";
+import { getAccount, getPositions, getPortfolioHistory, getCryptoBars, getCryptoSnapshot, getStockSnapshot, isMarketOpen, toDataSymbol, toTradeSymbol } from "./lib/alpaca-client.mjs";
 import { RiskManager } from "./lib/risk-manager.mjs";
 import { analyzeSymbol, scanSymbols, scanMovers, scanStockMovers, WATCH_LIST, STOCK_UNIVERSE } from "./lib/strategy.mjs";
 import { updateMarketRegime, filterSignals, getLearningSummary, recordTradeOutcome } from "./lib/learning-system.mjs";
 import { executeBuy, liquidatePosition, executeSignal, executeStockSignal, closeWorstPositions, rotateStalePositions, rotateBottomPerformers, replaceStopsAndTargets, cancelSellOrders, cancelStaleOrders } from "./lib/executor.mjs";
 import { recordRun } from "./lib/health-store.mjs";
-import { loadBotState, saveBotState, loadLearningState, saveLearningState, rebuildLearningFromAPI, savePositionSnapshot } from "./lib/state-store.mjs";
+import { loadBotState, saveBotState, loadLearningState, saveLearningState, savePositionSnapshot } from "./lib/state-store.mjs";
 
 export default async (req) => {
   const runStart = new Date().toISOString();
@@ -44,26 +44,7 @@ export default async (req) => {
 
     // Load persisted learning state (adaptive params)
     let learningState = await loadLearningState();
-    log(`[STATE] Loaded learning state: winRate=${learningState.winRate?.toFixed(2) || '0.50'}, totalWins=${learningState.totalWins}, totalLosses=${learningState.totalLosses}`);
-
-    // If learning state has no recent trades, try to rebuild from Alpaca API
-    if (learningState.totalWins + learningState.totalLosses < 5) {
-      log("[STATE] Learning state too thin, rebuilding from Alpaca activities API...");
-      try {
-        const rebuilt = await rebuildLearningFromAPI(getActivities, 7);
-        if (rebuilt.totalWins + rebuilt.totalLosses > learningState.totalWins + learningState.totalLosses) {
-          learningState = rebuilt;
-          await saveLearningState(learningState);
-          log(`[STATE] Rebuilt learning state from API: ${rebuilt.totalWins}W/${rebuilt.totalLosses}L, winRate=${rebuilt.winRate.toFixed(2)}`);
-        }
-      } catch (e) {
-        log(`[STATE] Rebuild from API failed: ${e.message}`);
-      }
-    }
-
-    // DEF-13: Learning system is now self-contained in learningState.
-    // Adaptive params are passed directly to strategy functions, not injected into module state.
-    log(`[STATE] Loaded learning state v2: ${learningState.totalTrades} trades, WR=${(learningState.winRate * 100).toFixed(1)}%, regime=${learningState.currentRegime}`);
+    log(`[STATE] Loaded learning state: ${learningState.totalTrades} trades, WR=${(learningState.winRate * 100).toFixed(1)}%, regime=${learningState.currentRegime}`);
 
     // Reset daily trade counter at midnight
     const today = new Date().toISOString().slice(0, 10);
