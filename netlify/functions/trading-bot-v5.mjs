@@ -88,37 +88,29 @@ export default async (req) => {
     // Save position snapshot for change detection
     await savePositionSnapshot(positions);
 
-    // 3. Learn from recent trade outcomes — DEF-13: reward-based learning
-    try {
-      const activities = await getActivities(new Date(Date.now() - 86400000).toISOString());
-      if (Array.isArray(activities)) {
-        let learnedCount = 0;
-        for (const act of activities.slice(0, 100)) {
-          if (act.side === "sell" && parseFloat(act.net_amount || 0) !== 0) {
-            const pnl = parseFloat(act.net_amount || 0);
-            const qty = parseFloat(act.qty || 0);
-            const price = parseFloat(act.price || 0);
-            const tradeValue = qty * price;
-            const pnlPct = tradeValue > 0 ? pnl / (tradeValue - pnl) : 0;
+    // 3. Record trade outcomes from position closes (DEF-13: reward-based learning).
+    // Crypto FILL activities lack net_amount, so we learn from position data at close time
+    // instead of parsing the activity feed. This gives exact PnL from Alpaca's position tracking.
+    const recordPositionClose = (position, strategy = "momentum") => {
+      const pnl = parseFloat(position.unrealized_pl || 0);
+      const pnlPct = parseFloat(position.unrealized_plpc || 0);
+      const qty = parseFloat(position.qty || 0);
+      const price = parseFloat(position.current_price || position.avg_entry_price || 0);
+      if (qty === 0 || price === 0) return;
+      const tradeValue = qty * price;
+      const actualPnlPct = tradeValue > 0 ? pnl / (tradeValue - pnl) : pnlPct;
+      recordTradeOutcome(learningState, {
+        symbol: position.symbol.replace("/", ""),
+        strategy,
+        pnl,
+        pnlPct: actualPnlPct,
+        holdingPeriodMins: 120,
+        atrPctAtEntry: 2,
+        timestamp: Date.now(),
+      });
+    };
 
-            recordTradeOutcome(learningState, {
-              symbol: act.symbol || "unknown",
-              strategy: "momentum",
-              pnl,
-              pnlPct,
-              holdingPeriodMins: 60,
-              atrPctAtEntry: 2,
-              timestamp: new Date(act.transaction_time || act.timestamp || Date.now()).getTime(),
-            });
-            learnedCount++;
-          }
-        }
-        log(`Learning: processed ${activities.length} activities, learned from ${learnedCount} sells with reward scoring`);
-        await saveLearningState(learningState);
-      }
-    } catch (e) {
-      log(`Learning: could not fetch activities - ${e.message}`);
-    }
+    try { await saveLearningState(learningState); } catch (e) { /* best effort */ }
 
     // 4. Risk manager - v6 config (position limits: $5k buy, $7k max per position)
     const riskManager = new RiskManager({
@@ -171,11 +163,13 @@ export default async (req) => {
       });
     for (const action of slTpActions) {
       log(`STOP-LOSS/TAKE-PROFIT: ${action.symbol} - ${action.reason}`);
+      const posForLearning = positions.find(p => p.symbol === action.symbol);
       try {
         const result = await liquidatePosition(action.symbol);
         actions.push({ type: "close", symbol: action.symbol, reason: action.reason, result });
         botState.dailyTradeCount++;
         log(`  Result: ${result.message}`);
+        if (posForLearning) recordPositionClose(posForLearning, "momentum");
       } catch (e) {
         log(`  Close failed: ${e.message}`);
       }
@@ -188,6 +182,8 @@ export default async (req) => {
       for (const c of closed) {
         actions.push({ type: "close", symbol: c.symbol, reason: `Underperformer: ${(c.pnl * 100).toFixed(1)}%`, result: c.result });
         botState.dailyTradeCount++;
+        const pos = positions.find(p => p.symbol === c.symbol);
+        if (pos) recordPositionClose(pos, "momentum");
       }
       if (closed.length > 0) log(`Closed ${closed.length} underperformers`);
     }
@@ -200,6 +196,8 @@ export default async (req) => {
       for (const r of rotated) {
         actions.push({ type: "rotate", symbol: r.symbol, reason: r.reason, result: r.result });
         botState.dailyTradeCount++;
+        const pos = positions.find(p => p.symbol === r.symbol);
+        if (pos) recordPositionClose(pos, "momentum");
       }
       if (rotated.length > 0) log(`Rotated ${rotated.length} stale positions`);
     }
@@ -211,6 +209,8 @@ export default async (req) => {
       for (const r of bottomRotated) {
         actions.push({ type: "rotate_bottom", symbol: r.symbol, reason: r.reason, result: r.result });
         botState.dailyTradeCount++;
+        const pos = positions.find(p => p.symbol === r.symbol);
+        if (pos) recordPositionClose(pos, "momentum");
       }
       if (bottomRotated.length > 0) log(`Rotated ${bottomRotated.length} bottom performers`);
     }
