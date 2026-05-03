@@ -11,7 +11,7 @@ import { getAccount, getPositions, getPortfolioHistory, getCryptoBars, getCrypto
 import { RiskManager } from './lib/risk-manager.mjs';
 import { analyzeSymbol, scanSymbols, scanMovers, scanStockMovers, WATCH_LIST, STOCK_UNIVERSE } from './lib/strategy.mjs';
 import { createLearningState, updateMarketRegime, filterSignals, getLearningSummary, recordTradeOutcome } from './lib/learning-system.mjs';
-import { executeBuy, liquidatePosition, executeSignal, executeStockSignal, closeWorstPositions, rotateStalePositions, rotateBottomPerformers, replaceStopsAndTargets, cancelSellOrders } from './lib/executor.mjs';
+import { executeBuy, liquidatePosition, executeSignal, executeStockSignal, closeWorstPositions, rotateStalePositions, rotateBottomPerformers, replaceStopsAndTargets, cancelSellOrders, cancelStaleOrders } from './lib/executor.mjs';
 import { recordRun } from './lib/health-store.mjs';
 
 // Bot state stored in memory (resets on cold start)
@@ -111,7 +111,20 @@ export default async (req) => {
     const tradingAllowed = await riskManager.checkTradingAllowed(account, positions, portfolioHistory);
     log(`Risk check: ${tradingAllowed.allowed ? "ALLOWED" : "BLOCKED"} - ${tradingAllowed.reason}`);
 
-    // 6. Check stop-loss / take-profit on existing positions
+    // 6. Cancel stale unfilled orders (>8h old) to free up locked capital
+    try {
+      const staleCancelled = await cancelStaleOrders(8);
+      if (staleCancelled.length > 0) {
+        log(`Cancelled ${staleCancelled.length} stale unfilled orders (${staleCancelled.map(o => `${o.symbol}(${o.ageHours}h)`).join(", ")})`);
+        for (const c of staleCancelled) {
+          actions.push({ type: "cancel_stale", symbol: c.symbol, reason: `Unfilled ${c.ageHours}h`, result: { success: true } });
+        }
+      }
+    } catch (e) {
+      log(`Stale order cancel failed: ${e.message}`);
+    }
+
+    // 7. Check stop-loss / take-profit on existing positions
     const slTpActions = riskManager.checkStopLossTakeProfit(positions);
     for (const action of slTpActions) {
       log(`STOP-LOSS/TAKE-PROFIT: ${action.symbol} - ${action.reason}`);

@@ -672,6 +672,38 @@ export async function rotateStalePositions(positions, equity = 100000) {
 }
 
 /**
+ * Cancel unfilled buy orders older than maxAgeHours.
+ * Frees up locked capital from stuck orders (e.g. limit orders that never fill).
+ * Returns list of cancelled orders.
+ */
+export async function cancelStaleOrders(maxAgeHours = 8) {
+  const cancelled = [];
+  try {
+    const orders = await getOrders("open");
+    const cutoffMs = Date.now() - maxAgeHours * 3600000;
+    for (const order of orders) {
+      const createdAt = new Date(order.created_at || order.submitted_at || 0).getTime();
+      if (createdAt > 0 && createdAt < cutoffMs) {
+        try {
+          await cancelOrder(order.id);
+          cancelled.push({
+            id: order.id,
+            symbol: order.symbol,
+            side: order.side,
+            ageHours: ((Date.now() - createdAt) / 3600000).toFixed(1),
+          });
+        } catch (e) {
+          console.log(`Failed to cancel stale order ${order.id}: ${e.message}`);
+        }
+      }
+    }
+  } catch (e) {
+    console.log(`cancelStaleOrders error: ${e.message}`);
+  }
+  return cancelled;
+}
+
+/**
  * Aggressive rebalancing: close bottom N positions by P&L to make room for new signals
  * This increases trade velocity for learning purposes
  */
