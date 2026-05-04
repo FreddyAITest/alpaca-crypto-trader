@@ -93,17 +93,17 @@ export default async (req) => {
 
     try { await saveLearningState(learningState); } catch (e) { /* best effort */ }
 
-    // 4. Risk manager - v6 config (position limits: $5k buy, $7k max per position)
+    // 4. Risk manager - v6 config: 3% SL / 4% TP for achievable targets
     const riskManager = new RiskManager({
-      maxPositionPct: 0.10,       // 10% per position for bigger trades
-      maxBuyValueUsd: 5000,      // Max $5k per buy order
-      maxPositionValueUsd: 7000, // Max $7k total per position
-      dailyLossLimitPct: 0.05,    // 5% daily loss limit
-      maxDrawdownPct: 0.10,       // 10% max drawdown (wider for crypto volatility)
+      maxPositionPct: 0.10,       // 10% per position
+      maxBuyValueUsd: 5000,
+      maxPositionValueUsd: 7000,
+      dailyLossLimitPct: 0.05,
+      maxDrawdownPct: 0.10,
       maxOpenPositions: 25,
       minTradeSizeUsd: 500,
-      defaultStopLossPct: 0.04,   // 4% SL (v6: tighter from 5%)
-      defaultTakeProfitPct: 0.06, // 6% TP (v6: tighter from 8%)
+      defaultStopLossPct: 0.03,   // 3% SL
+      defaultTakeProfitPct: 0.04, // 4% TP
       useAtrStops: true,
     });
 
@@ -142,10 +142,10 @@ export default async (req) => {
       }
     }
 
-    // 6b. Close underperformers — v5: more aggressive threshold (0.3% loss) for faster capital turnover
-    if (positions.length > 3) {
-      log("Closing underperformers (threshold: -0.3%)...");
-      const closed = await closeWorstPositions(positions, 0.003);
+    // 6b. Close deep underperformers — only at -1.5% loss, only when many positions open
+    if (positions.length > 8) {
+      log("Closing underperformers (threshold: -1.5%)...");
+      const closed = await closeWorstPositions(positions, 0.015);
       for (const c of closed) {
         actions.push({ type: "close", symbol: c.symbol, reason: `Underperformer: ${(c.pnl * 100).toFixed(1)}%`, result: c.result });
         botState.dailyTradeCount++;
@@ -155,9 +155,8 @@ export default async (req) => {
       if (closed.length > 0) log(`Closed ${closed.length} underperformers`);
     }
 
-    // 6c. Rotate stale/tiny positions to free up slots and capital
-    // v5: more aggressive — rotate positions older than 2h with pnl between -0.3% and +0.3%
-    if (positions.length >= 5) {
+    // 6c. Rotate stale/tiny positions — less aggressive, only when many positions open
+    if (positions.length >= 10) {
       log("Rotating stale positions...");
       const rotated = await rotateStalePositions(positions, equity);
       for (const r of rotated) {
@@ -169,22 +168,22 @@ export default async (req) => {
       if (rotated.length > 0) log(`Rotated ${rotated.length} stale positions`);
     }
 
-    // 6d. Rotate bottom 3 performers every cycle for maximum learning velocity
-    if (positions.length >= 4) {
-      log("Rotating bottom performers for velocity...");
-      const bottomRotated = await rotateBottomPerformers(positions, 3);
+    // 6d. Rotate bottom 1 performer only when many positions open
+    if (positions.length >= 10) {
+      log("Rotating bottom performer...");
+      const bottomRotated = await rotateBottomPerformers(positions, 1);
       for (const r of bottomRotated) {
         actions.push({ type: "rotate_bottom", symbol: r.symbol, reason: r.reason, result: r.result });
         botState.dailyTradeCount++;
         const pos = positions.find(p => p.symbol === r.symbol);
         if (pos) recordPositionClose(pos, "momentum");
       }
-      if (bottomRotated.length > 0) log(`Rotated ${bottomRotated.length} bottom performers`);
+      if (bottomRotated.length > 0) log(`Rotated ${bottomRotated.length} bottom performer`);
     }
 
-    // 6e. Re-place missing SL/TP orders for all open positions (v6: 4% SL, 6% TP)
+    // 6e. Re-place missing SL/TP orders for all open positions (3% SL, 4% TP)
     try {
-      const sltpResults = await replaceStopsAndTargets(positions, 0.04, 0.06);
+      const sltpResults = await replaceStopsAndTargets(positions, 0.03, 0.04);
       for (const r of sltpResults) {
         if (r.action && r.action !== "skip") {
           actions.push({ type: "sltp_replace", symbol: r.symbol, action: r.action, price: r.price });
