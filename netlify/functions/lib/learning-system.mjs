@@ -123,6 +123,12 @@ export function createLearningState() {
     explorationRate: 0.1,
     lastAdaptation: null,
     adaptationGeneration: 0,
+
+    // Neural network training buffer (DEF-13 NN)
+    tradeBuffer: [],
+    lastTrainCount: 0,
+    nnMetrics: null,
+    nnWeights: null,
   };
 }
 
@@ -164,6 +170,7 @@ function createStrategyStats() {
  * @param {number} trade.entryPrice - Entry price
  * @param {number} trade.exitPrice - Exit price
  * @param {number} trade.timestamp - Trade open time (ms)
+ * @param {number[]} trade.features - Optional feature vector from entry time (for NN training)
  */
 export function recordTradeOutcome(state, trade) {
   const now = Date.now();
@@ -235,7 +242,19 @@ export function recordTradeOutcome(state, trade) {
   // Adapt parameters based on new information
   adaptParameters(state);
 
-  return { reward, strategy, symbol: trade.symbol };
+  // Feed trade to neural network training buffer
+  let shouldTrain = false;
+  if (trade.features && Array.isArray(trade.features) && trade.features.length > 0) {
+    const buffer = state.tradeBuffer || [];
+    buffer.push({ features: trade.features, label: trade.pnlPct || 0 });
+    state.tradeBuffer = buffer.slice(-200);
+    const newSinceLast = buffer.length - (state.lastTrainCount || 0);
+    if (buffer.length >= 50 && newSinceLast >= 20) {
+      shouldTrain = true;
+    }
+  }
+
+  return { reward, strategy, symbol: trade.symbol, shouldTrain };
 }
 
 function createSymbolStats() {
@@ -292,6 +311,25 @@ function decayAndUpdateConfidence(state, now) {
 
 function sigmoid(x) {
   return 1 / (1 + Math.exp(-x));
+}
+
+// Inline NN forward pass (mirrors neural-network.mjs predict — avoids circular import)
+function nnPredictInline(features, weights) {
+  if (!weights || !weights.W1 || !weights.W2) return 0;
+  const H = weights.W1[0].length;
+  const hidden = new Array(H);
+  for (let j = 0; j < H; j++) {
+    let sum = weights.b1[j];
+    for (let i = 0; i < features.length; i++) {
+      sum += features[i] * weights.W1[i][j];
+    }
+    hidden[j] = Math.max(0, sum);
+  }
+  let output = weights.b2[0];
+  for (let j = 0; j < H; j++) {
+    output += hidden[j] * weights.W2[j][0];
+  }
+  return output;
 }
 
 // ============================================================
@@ -636,9 +674,10 @@ export function getStrategyWeights(state) {
  *
  * @param {Object} state - Learning state
  * @param {Array} signals - Raw signals from scanSymbols
+ * @param {Object} nnWeights - Optional trained NN weights for signal scoring
  * @returns {Array} filtered and scored signals
  */
-export function filterSignals(state, signals) {
+export function filterSignals(state, signals, nnWeights = null) {
   const strategyWeights = getStrategyWeights(state);
   const regimeStrats = getRegimeStrategies(state.currentRegime);
 
@@ -660,7 +699,16 @@ export function filterSignals(state, signals) {
       const baseWeight = strategyWeights[signal.strategy] || 0.5;
 
       // Adjust signal strength by strategy weight
-      const adjustedStrength = signal.strength * baseWeight;
+      let adjustedStrength = signal.strength * baseWeight;
+
+      // NN prediction: modulate strength if weights available and signal has features
+      let nnScore = 0.5;
+      if (nnWeights && signal.features && Array.isArray(signal.features)) {
+        // Use inline predict to avoid circular import
+        const nnPred = nnPredictInline(signal.features, nnWeights);
+        nnScore = 1 / (1 + Math.exp(-nnPred * 5)); // sigmoid scaled — [0,1]
+        adjustedStrength = adjustedStrength * (0.75 + nnScore * 0.5);
+      }
 
       // Boost if the symbol has a good track record
       const sym = state.symbols[signal.symbol];
@@ -674,6 +722,7 @@ export function filterSignals(state, signals) {
         adjustedStrength: Math.min(1, adjustedStrength * symbolBoost),
         strategyConfidence: baseWeight,
         symbolScore: sym ? sym.winRate : 0.5,
+        nnScore,
         filtered: false,
       };
     })
@@ -703,6 +752,17 @@ export function getLearningSummary(state) {
       averageReward: s.averageReward,
     }));
 
+  const nn = state.nnMetrics ? {
+    trainLoss: state.nnMetrics.trainLoss,
+    testLoss: state.nnMetrics.testLoss,
+    testMae: state.nnMetrics.testMae,
+    bufferSize: state.nnMetrics.bufferSize,
+    trainSize: state.nnMetrics.trainSize,
+    testSize: state.nnMetrics.testSize,
+    trainedAt: state.nnMetrics.trainedAt,
+    trained: state.nnMetrics.trained,
+  } : null;
+
   return {
     totalTrades: state.totalTrades,
     winRate: state.winRate,
@@ -722,6 +782,7 @@ export function getLearningSummary(state) {
     blacklisted: blacklisted.slice(0, 5),
     adaptiveParams: state.adaptiveParams,
     lastAdaptation: state.lastAdaptation,
+    nn,
   };
 }
 
@@ -745,6 +806,7 @@ export function serializeLearningState(state) {
   return {
     ...state,
     regimeHistory: (state.regimeHistory || []).slice(-maxRegimeHistory),
+    tradeBuffer: (state.tradeBuffer || []).slice(-200),
     symbols: Object.fromEntries(symbolEntries),
   };
 }
@@ -783,6 +845,10 @@ export function deserializeLearningState(raw) {
   fresh.lastAdaptation = raw.lastAdaptation ?? fresh.lastAdaptation;
   fresh.adaptationGeneration = raw.adaptationGeneration ?? fresh.adaptationGeneration;
   fresh.adaptiveParams = { ...fresh.adaptiveParams, ...(raw.adaptiveParams || {}) };
+  fresh.tradeBuffer = raw.tradeBuffer || [];
+  fresh.lastTrainCount = raw.lastTrainCount || 0;
+  fresh.nnMetrics = raw.nnMetrics || null;
+  fresh.nnWeights = raw.nnWeights || null;
 
   return fresh;
 }

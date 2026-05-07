@@ -172,6 +172,46 @@ export default function LearningDashboard() {
           </p>
         )}
       </div>
+
+      {/* Neural Network Status (DEF-13 NN) */}
+      <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] p-4">
+        <h3 className="text-sm font-medium text-[var(--text-muted)] mb-3">🧠 Neural Network</h3>
+        {data.nn?.trained ? (
+          <div className="space-y-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+              <div className="bg-[var(--bg-deep)] rounded-lg p-2">
+                <p className="text-[var(--text-muted)] text-xs">Test Loss (MSE)</p>
+                <p className="font-bold text-[var(--text-primary)] font-mono">{data.nn.testLoss?.toFixed(4)}</p>
+              </div>
+              <div className="bg-[var(--bg-deep)] rounded-lg p-2">
+                <p className="text-[var(--text-muted)] text-xs">Test MAE</p>
+                <p className="font-bold text-[var(--text-primary)] font-mono">{data.nn.testMae?.toFixed(4)}</p>
+              </div>
+              <div className="bg-[var(--bg-deep)] rounded-lg p-2">
+                <p className="text-[var(--text-muted)] text-xs">Buffer</p>
+                <p className="font-bold text-[var(--text-primary)]">{data.nn.bufferSize} trades</p>
+              </div>
+              <div className="bg-[var(--bg-deep)] rounded-lg p-2">
+                <p className="text-[var(--text-muted)] text-xs">Train/Test</p>
+                <p className="font-bold text-[var(--text-primary)]">{data.nn.trainSize}/{data.nn.testSize}</p>
+              </div>
+            </div>
+            {data.nn.trainedAt && (
+              <p className="text-xs text-[var(--text-muted)]">
+                Last trained: {new Date(data.nn.trainedAt).toLocaleString()}
+              </p>
+            )}
+          </div>
+        ) : (
+          <div className="text-center py-3">
+            <p className="text-xs text-[var(--text-muted)]">
+              {data.totalTrades < 50
+                ? `Not yet trained — needs ${50 - (data.totalTrades || 0)} more trades`
+                : 'Awaiting training trigger...'}
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

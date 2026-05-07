@@ -16,6 +16,7 @@ import { updateMarketRegime, filterSignals, getLearningSummary, recordTradeOutco
 import { executeBuy, liquidatePosition, executeSignal, executeStockSignal, closeWorstPositions, rotateStalePositions, rotateBottomPerformers, replaceStopsAndTargets, cancelSellOrders, cancelStaleOrders } from "./lib/executor.mjs";
 import { recordRun } from "./lib/health-store.mjs";
 import { loadBotState, saveBotState, loadLearningState, saveLearningState, savePositionSnapshot } from "./lib/state-store.mjs";
+import { extractFeatures, loadNNWeights, saveNNWeights, trainNeuralNetwork } from "./lib/neural-network.mjs";
 
 export default async (req) => {
   const runStart = new Date().toISOString();
@@ -46,6 +47,14 @@ export default async (req) => {
     let learningState = await loadLearningState();
     log(`[STATE] Loaded learning state: ${learningState.totalTrades} trades, WR=${(learningState.winRate * 100).toFixed(1)}%, regime=${learningState.currentRegime}`);
 
+    // Load NN weights (may be null if not trained yet)
+    if (!learningState.nnWeights) {
+      learningState.nnWeights = await loadNNWeights();
+    }
+    if (learningState.nnWeights) {
+      log(`[STATE] NN weights loaded (${learningState.nnMetrics?.trained ? `trained ${learningState.nnMetrics.trainedAt}` : 'present'})`);
+    }
+
     // Reset daily trade counter at midnight
     const today = new Date().toISOString().slice(0, 10);
     if (botState.dailyResetDate !== today) {
@@ -72,23 +81,35 @@ export default async (req) => {
     // 3. Record trade outcomes from position closes (DEF-13: reward-based learning).
     // Crypto FILL activities lack net_amount, so we learn from position data at close time
     // instead of parsing the activity feed. This gives exact PnL from Alpaca's position tracking.
+    // Maps symbol → feature vector for NN training. Populated when signals are executed,
+    // consumed when positions close so we know the features at entry time.
+    const pendingFeatures = {};
+    let nnShouldTrain = false;
+
     const recordPositionClose = (position, strategy = "momentum") => {
       const pnl = parseFloat(position.unrealized_pl || 0);
       const pnlPct = parseFloat(position.unrealized_plpc || 0);
       const qty = parseFloat(position.qty || 0);
       const price = parseFloat(position.current_price || position.avg_entry_price || 0);
-      if (qty === 0 || price === 0) return;
+      if (qty === 0 || price === 0) return { shouldTrain: false };
       const tradeValue = qty * price;
       const actualPnlPct = tradeValue > 0 ? pnl / (tradeValue - pnl) : pnlPct;
-      recordTradeOutcome(learningState, {
-        symbol: position.symbol.replace("/", ""),
+      const cleanSymbol = position.symbol.replace("/", "");
+      const features = pendingFeatures[position.symbol] || pendingFeatures[cleanSymbol];
+      const result = recordTradeOutcome(learningState, {
+        symbol: cleanSymbol,
         strategy,
         pnl,
         pnlPct: actualPnlPct,
         holdingPeriodMins: 120,
         atrPctAtEntry: 2,
         timestamp: Date.now(),
+        features: features || undefined,
       });
+      // Clean up pending features after use
+      delete pendingFeatures[position.symbol];
+      delete pendingFeatures[cleanSymbol];
+      return result;
     };
 
     try { await saveLearningState(learningState); } catch (e) { /* best effort */ }
@@ -136,7 +157,10 @@ export default async (req) => {
         actions.push({ type: "close", symbol: action.symbol, reason: action.reason, result });
         botState.dailyTradeCount++;
         log(`  Result: ${result.message}`);
-        if (posForLearning) recordPositionClose(posForLearning, "momentum");
+        if (posForLearning) {
+          const r = recordPositionClose(posForLearning, "momentum");
+          if (r.shouldTrain) nnShouldTrain = true;
+        }
       } catch (e) {
         log(`  Close failed: ${e.message}`);
       }
@@ -150,7 +174,10 @@ export default async (req) => {
         actions.push({ type: "close", symbol: c.symbol, reason: `Underperformer: ${(c.pnl * 100).toFixed(1)}%`, result: c.result });
         botState.dailyTradeCount++;
         const pos = positions.find(p => p.symbol === c.symbol);
-        if (pos) recordPositionClose(pos, "momentum");
+        if (pos) {
+          const r = recordPositionClose(pos, "momentum");
+          if (r.shouldTrain) nnShouldTrain = true;
+        }
       }
       if (closed.length > 0) log(`Closed ${closed.length} underperformers`);
     }
@@ -163,7 +190,10 @@ export default async (req) => {
         actions.push({ type: "rotate", symbol: r.symbol, reason: r.reason, result: r.result });
         botState.dailyTradeCount++;
         const pos = positions.find(p => p.symbol === r.symbol);
-        if (pos) recordPositionClose(pos, "momentum");
+        if (pos) {
+          const r = recordPositionClose(pos, "momentum");
+          if (r.shouldTrain) nnShouldTrain = true;
+        }
       }
       if (rotated.length > 0) log(`Rotated ${rotated.length} stale positions`);
     }
@@ -176,7 +206,10 @@ export default async (req) => {
         actions.push({ type: "rotate_bottom", symbol: r.symbol, reason: r.reason, result: r.result });
         botState.dailyTradeCount++;
         const pos = positions.find(p => p.symbol === r.symbol);
-        if (pos) recordPositionClose(pos, "momentum");
+        if (pos) {
+          const r = recordPositionClose(pos, "momentum");
+          if (r.shouldTrain) nnShouldTrain = true;
+        }
       }
       if (bottomRotated.length > 0) log(`Rotated ${bottomRotated.length} bottom performer`);
     }
@@ -345,7 +378,14 @@ export default async (req) => {
 
       // Scan for signals using multi-strategy, multi-timeframe analysis
       const rawSignals = scanSymbols(barsBySymbol, bars15MBySymbol, bars5MBySymbol, learningState.adaptiveParams);
-      const signals = filterSignals(learningState, rawSignals);
+
+      // DEF-13 NN: Extract feature vectors for each signal before filtering
+      for (const signal of rawSignals) {
+        const bars = barsBySymbol[signal.symbol];
+        signal.features = extractFeatures(signal, bars, learningState.currentRegime);
+      }
+
+      const signals = filterSignals(learningState, rawSignals, learningState.nnWeights);
       signalsFound = signals.length;
       log(`[CRYPTO] Signals found: ${rawSignals.length} raw → ${signalsFound} after learning filter`);
       
@@ -366,6 +406,10 @@ export default async (req) => {
             newTrades.push(signal);
             botState.totalTrades++;
             botState.dailyTradeCount++;
+            // Store features for NN training when this position closes
+            if (signal.features) {
+              pendingFeatures[tradeSym] = signal.features;
+            }
           }
         }
       }
@@ -426,6 +470,23 @@ export default async (req) => {
     botState.runHistory = botState.runHistory.slice(-100);
 
     // ============================================================
+    // DEF-13 NN: Trigger neural network training if buffer threshold met
+    // ============================================================
+    if (nnShouldTrain && learningState.tradeBuffer && learningState.tradeBuffer.length >= 50) {
+      log(`[NN] Training triggered — buffer: ${learningState.tradeBuffer.length} trades`);
+      try {
+        const result = trainNeuralNetwork(learningState.tradeBuffer, learningState.nnWeights);
+        learningState.nnWeights = result.weights;
+        learningState.nnMetrics = result.metrics;
+        learningState.lastTrainCount = learningState.tradeBuffer.length;
+        await saveNNWeights(result.weights);
+        log(`[NN] Training complete — testLoss=${result.metrics.testLoss?.toFixed(6)}, testMAE=${result.metrics.testMae?.toFixed(6)}`);
+      } catch (e) {
+        log(`[NN] Training failed: ${e.message}`);
+      }
+    }
+
+    // ============================================================
     // PERSIST STATE: Save bot state and learning state to Blobs
     // This is the critical v5 addition — state survives cold starts
     // ============================================================
@@ -465,6 +526,7 @@ export default async (req) => {
         blacklistedCount: learningInfo.blacklistedCount,
         adaptiveParams: learningInfo.adaptiveParams,
         lastAdaptation: learningInfo.lastAdaptation,
+        nn: learningInfo.nn,
         persisted: true,
       },
       logs: logs.slice(-40),
