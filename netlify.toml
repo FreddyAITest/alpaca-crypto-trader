@@ -59,6 +59,13 @@
   status = 200
   force = true
 
+# Backtesting harness (DEF-13)
+[[redirects]]
+  from = "/api/backtest"
+  to = "/.netlify/functions/backtest"
+  status = 200
+  force = true
+
 # Live prices endpoint (lightweight, for ticker polling)
 [[redirects]]
   from = "/api/live-prices"
