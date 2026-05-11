@@ -96,7 +96,8 @@ export default async (req) => {
     const pendingFeatures = {};
     let nnShouldTrain = false;
 
-    const recordPositionClose = (position, strategy = "momentum") => {
+    const recordPositionClose = (position, strategy = null) => {
+      strategy = strategy || position.strategy || "momentum";
       const pnl = parseFloat(position.unrealized_pl || 0);
       const pnlPct = parseFloat(position.unrealized_plpc || 0);
       const qty = parseFloat(position.qty || 0);
@@ -168,7 +169,7 @@ export default async (req) => {
         botState.dailyTradeCount++;
         log(`  Result: ${result.message}`);
         if (posForLearning) {
-          const r = recordPositionClose(posForLearning, "momentum");
+          const r = recordPositionClose(posForLearning);
           if (r.shouldTrain) nnShouldTrain = true;
         }
       } catch (e) {
@@ -185,7 +186,7 @@ export default async (req) => {
         botState.dailyTradeCount++;
         const pos = positions.find(p => p.symbol === c.symbol);
         if (pos) {
-          const r = recordPositionClose(pos, "momentum");
+          const r = recordPositionClose(pos);
           if (r.shouldTrain) nnShouldTrain = true;
         }
       }
@@ -201,7 +202,7 @@ export default async (req) => {
         botState.dailyTradeCount++;
         const pos = positions.find(p => p.symbol === r.symbol);
         if (pos) {
-          const r = recordPositionClose(pos, "momentum");
+          const r = recordPositionClose(pos);
           if (r.shouldTrain) nnShouldTrain = true;
         }
       }
@@ -217,7 +218,7 @@ export default async (req) => {
         botState.dailyTradeCount++;
         const pos = positions.find(p => p.symbol === r.symbol);
         if (pos) {
-          const r = recordPositionClose(pos, "momentum");
+          const r = recordPositionClose(pos);
           if (r.shouldTrain) nnShouldTrain = true;
         }
       }
