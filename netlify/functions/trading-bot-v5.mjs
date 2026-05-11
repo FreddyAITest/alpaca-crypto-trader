@@ -31,6 +31,9 @@ export default async (req) => {
     console.log(msg);
   };
 
+  let botState = { lastRun: runStart, totalTrades: 0, runHistory: [], peakEquity: 0, dailyTradeCount: 0, dailyResetDate: null };
+  let learningState;
+
   try {
     log("=== Trading Bot v5 (PERSISTENT STATE) Started ===");
 
@@ -40,11 +43,11 @@ export default async (req) => {
     // from Netlify Blobs, not lost on cold starts anymore.
     // Learning state is also loaded; if stale, rebuilt from API.
     // ============================================================
-    let botState = await loadBotState();
+    botState = await loadBotState();
     log(`[STATE] Loaded bot state: totalTrades=${botState.totalTrades}, dailyTrades=${botState.dailyTradeCount}, peakEquity=$${botState.peakEquity?.toFixed(2) || '0'}`);
 
     // Load persisted learning state (adaptive params)
-    let learningState = await loadLearningState();
+    learningState = await loadLearningState();
     log(`[STATE] Loaded learning state: ${learningState.totalTrades} trades, WR=${(learningState.winRate * 100).toFixed(1)}%, regime=${learningState.currentRegime}`);
 
     // Load NN weights (may be null if not trained yet)

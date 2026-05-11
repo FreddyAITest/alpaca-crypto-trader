@@ -21,7 +21,14 @@ export class RiskManager {
     this.atrProfitMultiplier = config.atrProfitMultiplier || 4; // wider ATR targets
 
     // Trailing stop
+    this.useTrailingStop = config.useTrailingStop !== false; // Default true
     this.trailingStopPct = config.trailingStopPct || 0.015; // 1.5% trailing
+
+    // Per-strategy SL/TP thresholds
+    this.scalpStopLossPct = config.scalpStopLossPct || 0.01;       // 1%
+    this.scalpTakeProfitPct = config.scalpTakeProfitPct || 0.02;   // 2%
+    this.meanRevStopLossPct = config.meanRevStopLossPct || 0.025;  // 2.5%
+    this.meanRevTakeProfitPct = config.meanRevTakeProfitPct || 0.035; // 3.5%
   }
 
   /**
