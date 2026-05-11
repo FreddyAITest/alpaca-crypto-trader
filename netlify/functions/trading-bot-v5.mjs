@@ -15,7 +15,7 @@ import { analyzeSymbol, scanSymbols, scanMovers, scanStockMovers, WATCH_LIST, ST
 import { updateMarketRegime, filterSignals, getLearningSummary, recordTradeOutcome } from "./lib/learning-system.mjs";
 import { executeBuy, liquidatePosition, executeSignal, executeStockSignal, closeWorstPositions, rotateStalePositions, rotateBottomPerformers, replaceStopsAndTargets, cancelSellOrders, cancelStaleOrders } from "./lib/executor.mjs";
 import { recordRun } from "./lib/health-store.mjs";
-import { loadBotState, saveBotState, loadLearningState, saveLearningState, savePositionSnapshot } from "./lib/state-store.mjs";
+import { loadBotState, saveBotState, loadLearningState, saveLearningState, savePositionSnapshot, savePositionMeta, loadPositionMeta } from "./lib/state-store.mjs";
 import { extractFeatures, loadNNWeights, saveNNWeights, trainNeuralNetwork } from "./lib/neural-network.mjs";
 
 export default async (req) => {
@@ -77,6 +77,13 @@ export default async (req) => {
     // 2. Get current positions
     const positions = await getPositions();
     log(`Open positions: ${positions.length}/25 slots, total exposure: $${positions.reduce((s, p) => s + parseFloat(p.market_value || 0), 0).toFixed(2)}`);
+
+    // Load position strategy metadata so SL/TP checks use correct per-strategy thresholds
+    const positionMeta = await loadPositionMeta();
+    for (const pos of positions) {
+      pos.strategy = positionMeta[pos.symbol] || "momentum";
+    }
+    log(`[STATE] Loaded position metadata for ${Object.keys(positionMeta).length} symbols`);
 
     // Save position snapshot for change detection
     await savePositionSnapshot(positions);
@@ -413,6 +420,10 @@ export default async (req) => {
             if (signal.features) {
               pendingFeatures[tradeSym] = signal.features;
             }
+            // Store strategy metadata for per-strategy SL/TP checks
+            if (signal.strategy) {
+              try { await savePositionMeta(tradeSym, signal.strategy); } catch (e) { /* best effort */ }
+            }
           }
         }
       }
@@ -440,6 +451,7 @@ export default async (req) => {
                   newTrades.push({ symbol: mover.symbol, strategy: "stock-momentum" });
                   botState.totalTrades++;
                   botState.dailyTradeCount++;
+                  try { await savePositionMeta(mover.symbol, "stock-momentum"); } catch (e) { /* best effort */ }
                 }
                 log(`  [STOCKS] ${result.message}`);
               } catch (e) {
