@@ -141,7 +141,7 @@ export default async (req) => {
 
     // 5. Check if trading is allowed
     const portfolioHistory = await getPortfolioHistory("1M", "1D");
-    const tradingAllowed = await riskManager.checkTradingAllowed(account, positions, portfolioHistory);
+    const tradingAllowed = await riskManager.checkTradingAllowed(account, positions, portfolioHistory, botState.peakEquity);
     log(`Risk check: ${tradingAllowed.allowed ? "ALLOWED" : "BLOCKED"} - ${tradingAllowed.reason}`);
 
     // 6. Cancel stale unfilled orders (>8h old) to free up locked capital

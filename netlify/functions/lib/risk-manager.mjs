@@ -34,7 +34,7 @@ export class RiskManager {
   /**
    * Check if trading is allowed based on current account state
    */
-  async checkTradingAllowed(account, positions, portfolioHistory) {
+  async checkTradingAllowed(account, positions, portfolioHistory, botPeakEquity = null) {
     const equity = parseFloat(account.equity);
     const lastEquity = parseFloat(account.last_mkt_value || equity);
 
@@ -54,9 +54,13 @@ export class RiskManager {
       return { allowed: false, reason: `Daily profit target reached: ${(dailyPnlPct * 100).toFixed(2)}% (target: ${(this.dailyProfitTargetPct * 100).toFixed(0)}%). Secured!` };
     }
 
-    // Max drawdown check from portfolio history
-    if (portfolioHistory && portfolioHistory.equity && portfolioHistory.equity.length > 0) {
-      const peak = Math.max(...portfolioHistory.equity.map(Number));
+    // Max drawdown check — use bot's own persistent peak equity first,
+    // fall back to Alpaca portfolio history only if unavailable.
+    let peak = botPeakEquity;
+    if (!peak && portfolioHistory && portfolioHistory.equity && portfolioHistory.equity.length > 0) {
+      peak = Math.max(...portfolioHistory.equity.map(Number));
+    }
+    if (peak) {
       const currentDrawdown = (equity - peak) / peak;
       if (currentDrawdown <= -this.maxDrawdownPct) {
         return { allowed: false, reason: `Max drawdown breached: ${(currentDrawdown * 100).toFixed(2)}% (limit: -${(this.maxDrawdownPct * 100).toFixed(0)}%). Liquidate!` };
