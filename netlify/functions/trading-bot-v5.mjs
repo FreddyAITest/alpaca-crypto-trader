@@ -139,12 +139,20 @@ export default async (req) => {
       useAtrStops: true,
     });
 
-    // 5. Check if trading is allowed
+    // 5. Auto-reset peak equity if drawdown limit is breached and there are no open positions.
+    // Once the bot has been fully liquidated, the old peak is no longer a valid reference.
+    const peakDrawdown = botState.peakEquity > 0 ? (equity - botState.peakEquity) / botState.peakEquity : 0;
+    if (Math.abs(peakDrawdown) > riskManager.maxDrawdownPct && positions.length === 0) {
+      log(`[STATE] Peak $${botState.peakEquity.toFixed(0)} → $${equity.toFixed(0)} (drawdown ${(peakDrawdown*100).toFixed(1)}% > ${(riskManager.maxDrawdownPct*100).toFixed(0)}%, 0 positions)`);
+      botState.peakEquity = equity;
+    }
+
+    // 6. Check if trading is allowed
     const portfolioHistory = await getPortfolioHistory("1M", "1D");
     const tradingAllowed = await riskManager.checkTradingAllowed(account, positions, portfolioHistory, botState.peakEquity);
     log(`Risk check: ${tradingAllowed.allowed ? "ALLOWED" : "BLOCKED"} - ${tradingAllowed.reason}`);
 
-    // 6. Cancel stale unfilled orders (>8h old) to free up locked capital
+    // 7. Cancel stale unfilled orders (>8h old) to free up locked capital
     try {
       const staleCancelled = await cancelStaleOrders(8);
       if (staleCancelled.length > 0) {
@@ -157,7 +165,7 @@ export default async (req) => {
       log(`Stale order cancel failed: ${e.message}`);
     }
 
-    // 7. Check stop-loss / take-profit on existing positions
+    // 8. Check stop-loss / take-profit on existing positions
     // liquidatePosition handles settlement (cancels SL orders, tries closePosition).
     const slTpActions = riskManager.checkStopLossTakeProfit(positions);
     for (const action of slTpActions) {
@@ -177,7 +185,7 @@ export default async (req) => {
       }
     }
 
-    // 6b. Close deep underperformers — only at -1.5% loss, only when many positions open
+    // 8b. Close deep underperformers — only at -1.5% loss, only when many positions open
     if (positions.length > 8) {
       log("Closing underperformers (threshold: -1.5%)...");
       const closed = await closeWorstPositions(positions, 0.015);
@@ -193,7 +201,7 @@ export default async (req) => {
       if (closed.length > 0) log(`Closed ${closed.length} underperformers`);
     }
 
-    // 6c. Rotate stale/tiny positions — less aggressive, only when many positions open
+    // 8c. Rotate stale/tiny positions — less aggressive, only when many positions open
     if (positions.length >= 10) {
       log("Rotating stale positions...");
       const rotated = await rotateStalePositions(positions, equity);
@@ -209,7 +217,7 @@ export default async (req) => {
       if (rotated.length > 0) log(`Rotated ${rotated.length} stale positions`);
     }
 
-    // 6d. Rotate bottom 1 performer only when many positions open
+    // 8d. Rotate bottom 1 performer only when many positions open
     if (positions.length >= 10) {
       log("Rotating bottom performer...");
       const bottomRotated = await rotateBottomPerformers(positions, 1);
@@ -225,7 +233,7 @@ export default async (req) => {
       if (bottomRotated.length > 0) log(`Rotated ${bottomRotated.length} bottom performer`);
     }
 
-    // 6e. Re-place missing SL/TP orders for all open positions (3% SL, 4% TP)
+    // 8e. Re-place missing SL/TP orders for all open positions (3% SL, 4% TP)
     try {
       const sltpResults = await replaceStopsAndTargets(positions, 0.03, 0.04);
       for (const r of sltpResults) {
@@ -250,7 +258,7 @@ export default async (req) => {
       }
     }
 
-    // 7. CRYPTO SCANNING - primary trading engine
+    // 9. CRYPTO SCANNING - primary trading engine
     let newTrades = [];
     if (tradingAllowed.allowed) {
       // --- CRYPTO SIGNALS ---
@@ -468,7 +476,7 @@ export default async (req) => {
       }
     }
 
-    // 8. Build risk summary and learning state
+    // 10. Build risk summary and learning state
     const riskSummary = riskManager.getRiskSummary(account, currentPositions);
     const learningInfo = getLearningSummary(learningState);
 
